@@ -1,0 +1,173 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using EMailSender.Core.Data
+@using EMailSender.Core.Models
+@using EMailSender.Core.Services
+@inject ConfigService Cfg
+@inject IConfiguration Config
+
+<h4 class="mb-3">Monitor mail</h4>
+
+@* Filtri *@
+<div class="row g-2 mb-3">
+    <div class="col-auto">
+        <select class="form-select form-select-sm" @bind="_filterCompany">
+            <option value="">— Tutte le company —</option>
+            @foreach (var c in _companies)
+            {
+                <option value="@c.Name">@c.DisplayName</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <select class="form-select form-select-sm" @bind="_filterStatus">
+            <option value="">— Tutti gli stati —</option>
+            <option value="N">In coda</option>
+            <option value="S">Errore</option>
+            <option value="A">Annullata</option>
+            <option value="sent">Spedita</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-sm btn-primary" @onclick="LoadJobs">Filtra</button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Reset">Reset</button>
+    </div>
+</div>
+
+@* Tabella *@
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Id</th>
+                <th>Company</th>
+                <th>Riferimento</th>
+                <th>A</th>
+                <th>Oggetto</th>
+                <th>Creata</th>
+                <th>Spedita</th>
+                <th>Stato</th>
+                <th>Tentativi</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var j in _jobs)
+            {
+                <tr>
+                    <td>@j.EmailId</td>
+                    <td>@j.Company</td>
+                    <td>@j.JobReference</td>
+                    <td title="@j.EmailTo">
+                        @(j.EmailTo.Length > 30 ? j.EmailTo[..30] + "…" : j.EmailTo)
+                    </td>
+                    <td>@j.EmailObject</td>
+                    <td>@j.CreationTimeStamp?.ToString("dd/MM/yy HH:mm")</td>
+                    <td>@j.SentTimeStamp?.ToString("dd/MM/yy HH:mm")</td>
+                    <td>
+                        @if (j.SentTimeStamp.HasValue)
+                        {
+                            <span class="badge bg-success">Spedita</span>
+                        }
+                        else if (j.IsError == "A")
+                        {
+                            <span class="badge bg-dark" title="@j.ErrorMessage">Annullata</span>
+                        }
+                        else if (j.IsError == "S")
+                        {
+                            <span class="badge bg-danger" title="@j.ErrorMessage">Errore</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">In coda</span>
+                        }
+                    </td>
+                    <td>@j.RetryCount</td>
+                    <td>
+                        @if (!j.SentTimeStamp.HasValue)
+                        {
+                            <button class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => Requeue(j)">
+                                ↩ Reinvia
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (!_jobs.Any())
+{
+    <p class="text-muted">Nessun risultato.</p>
+}
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert alert-info mt-2">@_message</div>
+}
+
+@code {
+    private List<CompanySettings> _companies = [];
+    private List<EmailJob> _jobs = [];
+    private string _filterCompany = "";
+    private string _filterStatus = "";
+    private string _message = "";
+
+    protected override void OnInitialized()
+    {
+        _companies = Cfg.GetAllCompanies();
+        LoadJobs();
+    }
+
+    private void LoadJobs()
+    {
+        _jobs = [];
+        _message = "";
+
+        var targets = string.IsNullOrWhiteSpace(_filterCompany)
+            ? _companies
+            : _companies.Where(c => c.Name == _filterCompany).ToList();
+
+        foreach (var c in targets)
+        {
+            var connStr = Config.GetConnectionString($"{c.Name}_Main");
+            if (string.IsNullOrWhiteSpace(connStr)) continue;
+
+            var repo = new EmailRepository(connStr);
+            var jobs = repo.GetAllJobs(top: 200);
+
+            var filtered = _filterStatus switch
+            {
+                "N" => jobs.Where(j => !j.SentTimeStamp.HasValue && j.IsError == "N"),
+                "S" => jobs.Where(j => j.IsError == "S"),
+                "A" => jobs.Where(j => j.IsError == "A"),
+                "sent" => jobs.Where(j => j.SentTimeStamp.HasValue),
+                _ => jobs.AsEnumerable()
+            };
+
+            _jobs.AddRange(filtered);
+        }
+
+        _jobs = [.. _jobs.OrderByDescending(j => j.EmailId)];
+    }
+
+    private void Reset()
+    {
+        _filterCompany = "";
+        _filterStatus = "";
+        LoadJobs();
+    }
+
+    private void Requeue(EmailJob job)
+    {
+        var connStr = Config.GetConnectionString($"{job.Company}_Main");
+        if (string.IsNullOrWhiteSpace(connStr)) return;
+
+        var repo = new EmailRepository(connStr);
+        repo.RequeueJob(job.EmailId);
+        _message = $"Email ID {job.EmailId} rimessa in coda.";
+        LoadJobs();
+    }
+}

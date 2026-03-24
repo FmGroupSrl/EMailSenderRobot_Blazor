@@ -1,0 +1,12 @@
+﻿using EMailSender.Web.Components.Layout
+
+<Router AppAssembly="typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(MainLayout)">
+            <p class="text-muted mt-4">Pagina non trovata.</p>
+        </LayoutView>
+    </NotFound>
+</Router>

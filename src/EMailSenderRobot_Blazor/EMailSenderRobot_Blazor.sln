@@ -1,9 +1,33 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36717.8 d17.14
+VisualStudioVersion = 17.14.36717.8
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMailSender.Core", "EMailSender.Core\EMailSender.Core.csproj", "{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMailSender.ConsoleJob", "EMailSender.ConsoleJob\EMailSender.ConsoleJob.csproj", "{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EMailSender.Web", "EMailSender.Web\EMailSender.Web.csproj", "{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}"
+EndProject
 Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection

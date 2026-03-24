@@ -1,0 +1,219 @@
+﻿@page "/companies"
+@rendermode InteractiveServer
+@using EMailSender.Core.Models
+@using EMailSender.Core.Services
+@inject ConfigService Cfg
+@inject IConfiguration Config
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Gestione Company</h4>
+    <button class="btn btn-sm btn-success" @onclick="NewCompany">+ Nuova company</button>
+</div>
+
+@* Semaforo globale *@
+<div class="alert @(_isBlocked ? "alert-danger" : "alert-success") d-flex align-items-center gap-3 mb-4">
+    <span class="fs-5">@(_isBlocked ? "🔴" : "🟢")</span>
+    <span class="fw-semibold">
+        @(_isBlocked ? "Spedizioni BLOCCATE — nessuna mail verrà inviata" : "Spedizioni attive")
+    </span>
+    <button class="btn btn-sm @(_isBlocked ? "btn-success" : "btn-danger") ms-auto"
+            @onclick="ToggleBlocked">
+        @(_isBlocked ? "✅ Sblocca spedizioni" : "🛑 Blocca spedizioni")
+    </button>
+</div>
+
+@* Lista company *@
+<table class="table table-sm table-hover align-middle mb-5">
+    <thead class="table-dark">
+        <tr>
+            <th>Name</th>
+            <th>Display</th>
+            <th>Batch</th>
+            <th>MaxRetry</th>
+            <th>Log (gg)</th>
+            <th>DKIM</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var c in _companies)
+        {
+            <tr>
+                <td><code>@c.Name</code></td>
+                <td>@c.DisplayName</td>
+                <td>@c.BatchSize</td>
+                <td>@c.MaxRetryCount</td>
+                <td>@c.LogRetentionDays</td>
+                <td>
+                    @if (!string.IsNullOrWhiteSpace(c.Dkim?.Domain))
+                    {
+                        <span class="badge bg-info text-dark">✔ @c.Dkim.Domain</span>
+                    }
+                    else
+                    {
+
+                        <span class="badge bg-secondary">—</span>
+                    }
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary"
+                            @onclick="() => EditCompany(c)">
+                        ✏ Modifica
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger"
+                            @onclick="() => RemoveCompany(c.Name)">
+                        🗑
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@* Form aggiunta/modifica *@
+<div class="card shadow-sm">
+    <div class="card-header bg-dark text-white">
+        @(_isNew ? "Nuova company" : $"Modifica: {_edit.Name}")
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Name</label>
+                <input class="form-control" @bind="_edit.Name" disabled="@(!_isNew)" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Display Name</label>
+                <input class="form-control" @bind="_edit.DisplayName" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">Batch size</label>
+                <input type="number" class="form-control" @bind="_edit.BatchSize" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">Max retry</label>
+                <input type="number" class="form-control" @bind="_edit.MaxRetryCount" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">Giorni log</label>
+                <input type="number" class="form-control" @bind="_edit.LogRetentionDays" />
+            </div>
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Directory log file</label>
+                <input class="form-control" @bind="_edit.LogDirectory"
+                       placeholder="C:\EMailSender\Logs\CompanyA" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Backup company</label>
+                <input class="form-control" @bind="_edit.BackupCompany" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Backup email type</label>
+                <input class="form-control" @bind="_edit.BackupEmailType" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Tabella config SMTP</label>
+                <input class="form-control" @bind="_edit.SqlConfigTableServer" />
+            </div>
+
+            <div class="col-12"><hr /><strong>Connection Strings</strong></div>
+            <div class="col-12">
+                <label class="form-label fw-semibold">Main DB</label>
+                <input class="form-control font-monospace" @bind="_connStrMain"
+                       placeholder="data source=.\SQLEXPRESS;..." />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-semibold">Log DB</label>
+                <input class="form-control font-monospace" @bind="_connStrLog"
+                       placeholder="data source=.\SQLEXPRESS;..." />
+            </div>
+
+            <div class="col-12"><hr /><strong>DKIM</strong> <small class="text-muted">(opzionale)</small></div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Dominio</label>
+                <input class="form-control" @bind="_edit.Dkim.Domain" placeholder="example.com" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Selector</label>
+                <input class="form-control" @bind="_edit.Dkim.Selector" placeholder="mail" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-semibold">Chiave privata RSA (Base64)</label>
+                <textarea class="form-control font-monospace" rows="4"
+                          @bind="_edit.Dkim.PrivateKeyBase64"
+                          placeholder="Incolla qui la chiave privata RSA codificata in Base64..."></textarea>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="col-12"><div class="alert alert-info py-1">@_message</div></div>
+            }
+
+            <div class="col-12 text-end">
+                <button class="btn btn-outline-secondary me-2" @onclick="NewCompany">Annulla</button>
+                <button class="btn btn-primary" @onclick="SaveCompany">💾 Salva</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CompanySettings> _companies = [];
+    private CompanySettings _edit = new() { Dkim = new() };
+    private bool _isNew = true;
+    private bool _isBlocked;
+    private string _connStrMain = "";
+    private string _connStrLog = "";
+    private string _message = "";
+
+    protected override void OnInitialized()
+    {
+        _companies = Cfg.GetAllCompanies();
+        _isBlocked = Cfg.IsBlocked();
+    }
+
+    private void NewCompany()
+    {
+        _edit = new() { Dkim = new() };
+        _connStrMain = "";
+        _connStrLog = "";
+        _isNew = true;
+        _message = "";
+    }
+
+    private void EditCompany(CompanySettings c)
+    {
+        // Clona per non modificare la lista direttamente
+        _edit = System.Text.Json.JsonSerializer.Deserialize<CompanySettings>(
+                           System.Text.Json.JsonSerializer.Serialize(c))!;
+        _edit.Dkim ??= new();
+        _connStrMain = Config.GetConnectionString($"{c.Name}_Main") ?? "";
+        _connStrLog = Config.GetConnectionString($"{c.Name}_Log") ?? "";
+        _isNew = false;
+        _message = "";
+    }
+
+    private void SaveCompany()
+    {
+        if (string.IsNullOrWhiteSpace(_edit.Name))
+        {
+            _message = "Il campo Name è obbligatorio.";
+            return;
+        }
+        Cfg.SaveCompany(_edit, _connStrMain, _connStrLog);
+        _companies = Cfg.GetAllCompanies();
+        _message = $"Company '{_edit.Name}' salvata.";
+        NewCompany();
+    }
+
+    private void RemoveCompany(string name)
+    {
+        Cfg.RemoveCompany(name);
+        _companies = Cfg.GetAllCompanies();
+    }
+
+    private void ToggleBlocked()
+    {
+        _isBlocked = !_isBlocked;
+        Cfg.SetBlocked(_isBlocked);
+    }
+}

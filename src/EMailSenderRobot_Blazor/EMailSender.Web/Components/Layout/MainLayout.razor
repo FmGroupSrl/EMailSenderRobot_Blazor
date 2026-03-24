@@ -1,0 +1,57 @@
+﻿@using EMailSender.Core.Services
+@using EMailSender.Core.Models
+@inherits LayoutComponentBase
+
+<div class="d-flex flex-column" style="min-height:100vh">
+    <nav class="navbar navbar-dark bg-dark px-3">
+        <a class="navbar-brand fw-bold" href="/">📧 EMailSender</a>
+        @if (_isBlocked)
+        {
+            <span class="badge bg-danger fs-6">🔴 SPEDIZIONI BLOCCATE</span>
+        }
+    </nav>
+
+    <div class="container-fluid flex-grow-1">
+        <div class="row h-100">
+            <!-- Sidebar -->
+            <nav class="col-md-2 bg-dark py-3 ps-3 pe-2" style="min-height:calc(100vh - 56px)">
+                <ul class="nav flex-column gap-1">
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-secondary" href="/" Match="NavLinkMatch.All">
+                            📋 Monitor mail
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-secondary" href="/log">
+                            📄 Log
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-secondary" href="/companies">
+                            🏢 Company
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-secondary" href="/smtpconfig">
+                            ⚙️ Config SMTP
+                        </NavLink>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Contenuto -->
+            <main class="col-md-10 py-4 px-4">
+                @Body
+            </main>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] ConfigService Cfg { get; set; } = default!;
+
+    private bool _isBlocked;
+
+    protected override void OnInitialized()
+        => _isBlocked = Cfg.IsBlocked();
+}

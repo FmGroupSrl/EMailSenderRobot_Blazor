@@ -1,0 +1,117 @@
+﻿@page "/log"
+@rendermode InteractiveServer
+@using EMailSender.Core.Data
+@using EMailSender.Core.Models
+@using EMailSender.Core.Services
+@inject ConfigService Cfg
+@inject IConfiguration Config
+
+<h4 class="mb-3">Log applicativo</h4>
+
+<div class="row g-2 mb-3">
+    <div class="col-auto">
+        <select class="form-select form-select-sm" @bind="_filterCompany">
+            <option value="">— Tutte le company —</option>
+            @foreach (var c in _companies)
+            {
+                <option value="@c.Name">@c.DisplayName</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <select class="form-select form-select-sm" @bind="_filterTipo">
+            <option value="">— Tutti i tipi —</option>
+            <option value="RISULTATO">RISULTATO</option>
+            <option value="ERRORE">ERRORE</option>
+            <option value="GENERALE">GENERALE</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-sm btn-primary" @onclick="LoadLogs">Filtra</button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Reset">Reset</button>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:.85rem">
+        <thead class="table-dark">
+            <tr>
+                <th>Data</th>
+                <th>Ora</th>
+                <th>Company</th>
+                <th>Tipo</th>
+                <th>Operazione</th>
+                <th>Descrizione</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in _entries)
+            {
+                var rowCss = e.Tipo == "ERRORE" ? "table-danger" :
+                e.Tipo == "RISULTATO" ? "table-success" : "";
+                <tr class="@rowCss">
+                    <td>@e.Data</td>
+                    <td>@e.Ora</td>
+                    <td>@e.Company</td>
+                    <td>
+                        <span class="badge @(e.Tipo == "ERRORE" ? "bg-danger" : e.Tipo == "RISULTATO" ? "bg-success" : "bg-secondary")">
+                            @e.Tipo
+                        </span>
+                    </td>
+                    <td>@e.Operazione</td>
+                    <td>@e.Descr</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (!_entries.Any())
+{
+    <p class="text-muted">Nessun log trovato.</p>
+}
+
+@code {
+    private List<CompanySettings> _companies = [];
+    private List<LogEntry> _entries = [];
+    private string _filterCompany = "";
+    private string _filterTipo = "";
+
+    protected override void OnInitialized()
+    {
+        _companies = Cfg.GetAllCompanies();
+        LoadLogs();
+    }
+
+    private void LoadLogs()
+    {
+        _entries = [];
+
+        var targets = string.IsNullOrWhiteSpace(_filterCompany)
+            ? _companies
+            : _companies.Where(c => c.Name == _filterCompany).ToList();
+
+        foreach (var c in targets)
+        {
+            var connStr = Config.GetConnectionString($"{c.Name}_Log");
+            if (string.IsNullOrWhiteSpace(connStr)) continue;
+
+            var repo = new EmailRepository(connStr);
+            var entries = repo.GetRecentLogs(top: 300);
+
+            if (!string.IsNullOrWhiteSpace(_filterTipo))
+                entries = entries.Where(e => e.Tipo == _filterTipo).ToList();
+
+            _entries.AddRange(entries);
+        }
+
+        _entries = [.. _entries.OrderByDescending(e => e.Id)];
+    }
+
+    private void Reset()
+    {
+        _filterCompany = "";
+        _filterTipo = "";
+        LoadLogs();
+    }
+}

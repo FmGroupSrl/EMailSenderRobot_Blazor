@@ -1,0 +1,172 @@
+﻿@page "/smtpconfig"
+@rendermode InteractiveServer
+@using EMailSender.Core.Data
+@using EMailSender.Core.Models
+@using EMailSender.Core.Services
+@inject ConfigService Cfg
+@inject IConfiguration Config
+
+<h4 class="mb-3">Configurazione SMTP</h4>
+
+@* Selezione company *@
+<div class="row g-2 mb-4">
+    <div class="col-auto">
+        <select class="form-select" @bind="_selectedCompany" @bind:after="LoadConfig">
+            <option value="">— Seleziona company —</option>
+            @foreach (var c in _companies)
+            {
+                <option value="@c.Name">@c.DisplayName</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_selectedCompany))
+{
+    <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white">
+            Parametri SMTP — @_selectedCompany
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Server SMTP</label>
+                    <input class="form-control" @bind="_cfg.Smtp_Server"
+                           placeholder="smtp.example.com" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold">Porta</label>
+                    <input type="number" class="form-control" @bind="_cfg.Smtp_Port" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox"
+                               @bind="_cfg.Smtp_Ssl" id="chkSsl" />
+                        <label class="form-check-label" for="chkSsl">SSL</label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox"
+                               @bind="_cfg.Smtp_StartTls" id="chkTls" />
+                        <label class="form-check-label" for="chkTls">StartTLS</label>
+                    </div>
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox"
+                               @bind="_cfg.Smtp_Auth" id="chkAuth" />
+                        <label class="form-check-label" for="chkAuth">Autenticazione</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Utente SMTP</label>
+                    <input class="form-control" @bind="_cfg.Smtp_User"
+                           disabled="@(!_cfg.Smtp_Auth)" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Password SMTP</label>
+                    <input type="password" class="form-control" @bind="_cfg.Smtp_Password"
+                           disabled="@(!_cfg.Smtp_Auth)" />
+                </div>
+
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">Indirizzo mittente</label>
+                    <input class="form-control" @bind="_cfg.Smtp_Sender"
+                           placeholder="noreply@example.com" />
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">Alias mittente</label>
+                    <input class="form-control" @bind="_cfg.Smtp_SenderAlias"
+                           placeholder="Nome Azienda" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(_message))
+                {
+                    <div class="col-12">
+                        <div class="alert @(_isError ? "alert-danger" : "alert-success") py-1">
+                            @_message
+                        </div>
+                    </div>
+                }
+
+                <div class="col-12 text-end">
+                    <button class="btn btn-outline-secondary me-2" @onclick="LoadConfig">
+                        ↺ Ricarica
+                    </button>
+                    <button class="btn btn-primary" @onclick="SaveConfig">
+                        💾 Salva
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CompanySettings> _companies = [];
+    private string _selectedCompany = "";
+    private EmailServerConfig _cfg = new();
+    private string _message = "";
+    private bool _isError;
+
+    protected override void OnInitialized()
+        => _companies = Cfg.GetAllCompanies();
+
+    private void LoadConfig()
+    {
+        _message = "";
+        _isError = false;
+
+        if (string.IsNullOrWhiteSpace(_selectedCompany)) return;
+
+        var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
+        if (companyCfg is null) return;
+
+        var connStr = Config.GetConnectionString($"{_selectedCompany}_Main");
+        if (string.IsNullOrWhiteSpace(connStr))
+        {
+            _message = $"Connection string '{_selectedCompany}_Main' non trovata.";
+            _isError = true;
+            return;
+        }
+
+        var repo = new EmailRepository(connStr);
+        var result = repo.GetServerConfig(_selectedCompany, companyCfg.SqlConfigTableServer);
+
+        _cfg = result ?? new EmailServerConfig { Company = _selectedCompany };
+
+        if (result is null)
+            _message = "Nessuna configurazione trovata — verrà creata al salvataggio.";
+    }
+
+    private void SaveConfig()
+    {
+        _message = "";
+        _isError = false;
+
+        var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
+        if (companyCfg is null) return;
+
+        var connStr = Config.GetConnectionString($"{_selectedCompany}_Main");
+        if (string.IsNullOrWhiteSpace(connStr))
+        {
+            _message = $"Connection string '{_selectedCompany}_Main' non trovata.";
+            _isError = true;
+            return;
+        }
+
+        try
+        {
+            var repo = new EmailRepository(connStr);
+            repo.SaveServerConfig(_cfg, companyCfg.SqlConfigTableServer);
+            _message = "Configurazione salvata.";
+        }
+        catch (Exception ex)
+        {
+            _message = $"Errore: {ex.Message}";
+            _isError = true;
+        }
+    }
+}

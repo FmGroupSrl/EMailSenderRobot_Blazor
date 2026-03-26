@@ -23,7 +23,8 @@
 
 @if (!string.IsNullOrWhiteSpace(_selectedCompany))
 {
-    <div class="card shadow-sm">
+    @* --- CARD SMTP --- *@
+    <div class="card shadow-sm mb-4">
         <div class="card-header bg-dark text-white">
             Parametri SMTP — @_selectedCompany
         </div>
@@ -82,11 +83,11 @@
                            placeholder="Nome Azienda" />
                 </div>
 
-                @if (!string.IsNullOrEmpty(_message))
+                @if (!string.IsNullOrEmpty(_saveMessage))
                 {
                     <div class="col-12">
-                        <div class="alert @(_isError ? "alert-danger" : "alert-success") py-1">
-                            @_message
+                        <div class="alert @(_isSaveError ? "alert-danger" : "alert-success") py-1">
+                            @_saveMessage
                         </div>
                     </div>
                 }
@@ -102,49 +103,146 @@
             </div>
         </div>
     </div>
+
+    @* --- CARD DKIM --- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-dark text-white">
+            DKIM — @_selectedCompany
+            <small class="text-muted ms-2">(opzionale)</small>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Dominio</label>
+                    <input class="form-control" @bind="_dkim.Domain" placeholder="example.com" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Selector</label>
+                    <input class="form-control" @bind="_dkim.Selector" placeholder="mail" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Chiave privata RSA (Base64)</label>
+                    <textarea class="form-control font-monospace" rows="4"
+                              @bind="_dkim.PrivateKeyBase64"
+                              placeholder="Incolla qui la chiave privata RSA codificata in Base64..."></textarea>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_saveDkimMessage))
+                {
+                    <div class="col-12">
+                        <div class="alert @(_isDkimSaveError ? "alert-danger" : "alert-success") py-1">
+                            @_saveDkimMessage
+                        </div>
+                    </div>
+                }
+
+                <div class="col-12 text-end">
+                    <button class="btn btn-primary" @onclick="SaveDkim">
+                        💾 Salva DKIM
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* --- CARD TEST MAIL --- *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-dark text-white">
+            Test invio mail — @_selectedCompany
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold">Destinatario test</label>
+                    <input class="form-control" @bind="_testEmailTo"
+                           placeholder="destinatario@example.com" />
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-primary" @onclick="SendTestEmail"
+                            disabled="@_testRunning">
+                        @if (_testRunning)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        📨 Invia mail di test
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_testResultMessage))
+            {
+                <div class="mt-3 alert @(_testIsError ? "alert-danger" : "alert-success")">
+                    <div class="fw-bold mb-1">@(_testIsError ? "❌ KO" : "✅ OK")</div>
+                    <div>@_testResultMessage</div>
+                    <hr class="my-2" />
+                    <small class="text-muted font-monospace">@_testServerDetails</small>
+                </div>
+            }
+        </div>
+    </div>
 }
 
 @code {
     private List<CompanySettings> _companies = [];
     private string _selectedCompany = "";
+
+    // SMTP
     private EmailServerConfig _cfg = new();
-    private string _message = "";
-    private bool _isError;
+    private string _saveMessage = "";
+    private bool _isSaveError;
+
+    // DKIM — letto/scritto sull'appsettings tramite ConfigService
+    private DkimConfig _dkim = new();
+    private string _saveDkimMessage = "";
+    private bool _isDkimSaveError;
+
+    // Test mail
+    private string _testEmailTo = "flavio.narcisi@fmgsrl.com";
+    private bool _testRunning;
+    private bool _testIsError;
+    private string _testResultMessage = "";
+    private string _testServerDetails = "";
 
     protected override void OnInitialized()
         => _companies = Cfg.GetAllCompanies();
 
     private void LoadConfig()
     {
-        _message = "";
-        _isError = false;
+        _saveMessage = "";
+        _isSaveError = false;
+        _saveDkimMessage = "";
+        _testResultMessage = "";
+        _testServerDetails = "";
 
         if (string.IsNullOrWhiteSpace(_selectedCompany)) return;
 
+        // --- SMTP dal DB ---
         var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
         if (companyCfg is null) return;
 
         var connStr = Config.GetConnectionString($"{_selectedCompany}_Main");
         if (string.IsNullOrWhiteSpace(connStr))
         {
-            _message = $"Connection string '{_selectedCompany}_Main' non trovata.";
-            _isError = true;
+            _saveMessage = $"Connection string '{_selectedCompany}_Main' non trovata.";
+            _isSaveError = true;
             return;
         }
 
         var repo = new EmailRepository(connStr);
         var result = repo.GetServerConfig(_selectedCompany, companyCfg.SqlConfigTableServer);
-
         _cfg = result ?? new EmailServerConfig { Company = _selectedCompany };
 
         if (result is null)
-            _message = "Nessuna configurazione trovata — verrà creata al salvataggio.";
+            _saveMessage = "Nessuna configurazione SMTP trovata — verrà creata al salvataggio.";
+
+        // --- DKIM dall'appsettings (già in CompanySettings) ---
+        _dkim = companyCfg.Dkim ?? new DkimConfig();
     }
 
     private void SaveConfig()
     {
-        _message = "";
-        _isError = false;
+        _saveMessage = "";
+        _isSaveError = false;
 
         var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
         if (companyCfg is null) return;
@@ -152,8 +250,8 @@
         var connStr = Config.GetConnectionString($"{_selectedCompany}_Main");
         if (string.IsNullOrWhiteSpace(connStr))
         {
-            _message = $"Connection string '{_selectedCompany}_Main' non trovata.";
-            _isError = true;
+            _saveMessage = $"Connection string '{_selectedCompany}_Main' non trovata.";
+            _isSaveError = true;
             return;
         }
 
@@ -161,12 +259,76 @@
         {
             var repo = new EmailRepository(connStr);
             repo.SaveServerConfig(_cfg, companyCfg.SqlConfigTableServer);
-            _message = "Configurazione salvata.";
+            _saveMessage = "Configurazione SMTP salvata.";
         }
         catch (Exception ex)
         {
-            _message = $"Errore: {ex.Message}";
-            _isError = true;
+            _saveMessage = $"Errore: {ex.Message}";
+            _isSaveError = true;
         }
+    }
+
+    private void SaveDkim()
+    {
+        _saveDkimMessage = "";
+        _isDkimSaveError = false;
+
+        var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
+        if (companyCfg is null) return;
+
+        // Recupera le connection strings correnti per non perderle durante il salvataggio
+        var connStrMain = Config.GetConnectionString($"{_selectedCompany}_Main") ?? "";
+        var connStrLog = Config.GetConnectionString($"{_selectedCompany}_Log") ?? "";
+
+        try
+        {
+            // Aggiorna solo il campo Dkim nella company e riscrive l'appsettings
+            companyCfg.Dkim = _dkim;
+            Cfg.SaveCompany(companyCfg, connStrMain, connStrLog);
+            _companies = Cfg.GetAllCompanies();  // ricarica la lista locale
+            _saveDkimMessage = "Configurazione DKIM salvata.";
+        }
+        catch (Exception ex)
+        {
+            _saveDkimMessage = $"Errore: {ex.Message}";
+            _isDkimSaveError = true;
+        }
+    }
+
+    private async Task SendTestEmail()
+    {
+        _testResultMessage = "";
+        _testServerDetails = "";
+        _testIsError = false;
+        _testRunning = true;
+        StateHasChanged();  // forza il render per mostrare lo spinner
+
+        await Task.Run(() =>
+        {
+            var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
+
+            var svc = new MailSenderService();
+            svc.SetServerConfig(_cfg);
+            svc.SetDkimConfig(_dkim);
+
+            svc.TO = [_testEmailTo];
+            svc.EmailObject = $"[TEST] EMailSender — {_selectedCompany} — {DateTime.Now:dd/MM/yyyy HH:mm}";
+            svc.EmailFullBody = $"Mail di test inviata da EMailSender Robot.<br/><br/>" +
+                                $"Company: <b>{_selectedCompany}</b><br/>" +
+                                $"Server: {_cfg.Smtp_Server}:{_cfg.Smtp_Port}<br/>" +
+                                $"Mittente: {_cfg.Smtp_Sender}<br/>" +
+                                $"Data/ora: {DateTime.Now:dd/MM/yyyy HH:mm:ss}";
+
+            bool hasError = svc.SendEmail(isHtml: true, attempts: 1);
+
+            _testIsError = hasError;
+            _testResultMessage = hasError
+                ? svc.ErrorMessage
+                : $"Mail inviata correttamente a {_testEmailTo}";
+
+            _testServerDetails = svc.GetServerDetails();
+        });
+
+        _testRunning = false;
     }
 }

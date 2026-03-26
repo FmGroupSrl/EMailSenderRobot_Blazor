@@ -136,7 +136,7 @@
             if (string.IsNullOrWhiteSpace(connStr)) continue;
 
             var repo = new EmailRepository(connStr);
-            var jobs = repo.GetAllJobs(top: 200);
+            var jobs = repo.GetAllJobs(top: 200, company: c.Name);
 
             var filtered = _filterStatus switch
             {
@@ -152,6 +152,7 @@
 
         _jobs = [.. _jobs.OrderByDescending(j => j.EmailId)];
     }
+
 
     private void Reset()
     {

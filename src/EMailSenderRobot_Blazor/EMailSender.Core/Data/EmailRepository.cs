@@ -66,15 +66,22 @@ public class EmailRepository
 
     /// <summary>
     /// Legge tutti i job per il monitor (Web UI), ordinati per EmailId DESC.
+    /// Se <paramref name="company"/> è valorizzato filtra per company.
     /// </summary>
-    public List<EmailJob> GetAllJobs(int top = 500)
+    public List<EmailJob> GetAllJobs(int top = 500, string? company = null)
     {
-        var sql = $"SELECT TOP (@top) * FROM ConfigEmailJobSchedule ORDER BY EmailId DESC";
+        var sql = string.IsNullOrWhiteSpace(company)
+            ? "SELECT TOP (@top) * FROM ConfigEmailJobSchedule ORDER BY EmailId DESC"
+            : "SELECT TOP (@top) * FROM ConfigEmailJobSchedule WHERE Company = @company ORDER BY EmailId DESC";
+
         var jobs = new List<EmailJob>();
 
         using var conn = new SqlConnection(_connStr);
         using var cmd = new SqlCommand(sql, conn);
         cmd.Parameters.Add("@top", SqlDbType.Int).Value = top;
+        if (!string.IsNullOrWhiteSpace(company))
+            cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+
         conn.Open();
         using var rdr = cmd.ExecuteReader();
         while (rdr.Read())

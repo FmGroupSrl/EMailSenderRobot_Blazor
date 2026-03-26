@@ -1,13 +1,15 @@
-
 using EMailSender.Core.Data;
 using EMailSender.Core.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory   // << forza la root alla cartella dell'exe
+});
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Percorso appsettings.json condiviso con l'EXE
 var appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 
 builder.Services.AddSingleton(new ConfigService(appSettingsPath));

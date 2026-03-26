@@ -26,7 +26,6 @@ var config = new ConfigurationBuilder()
 
 var jobCfg = config.GetSection("EmailJob");
 int maxRetry = jobCfg.GetValue<int>("MaxRetryCount", 2);
-string sqlTable = jobCfg.GetValue<string>("SqlConfigTableServer", "ConfigEmailServer")!;
 
 string company = argCompany ?? jobCfg.GetValue<string>("DefaultCompany", "")!;
 
@@ -46,6 +45,9 @@ var fileLog = new FileLogger(companyCfg?.LogDirectory
 
 // Batch size: da riga di comando oppure da appsettings della company
 int batchSize = argBatch ?? companyCfg?.BatchSize ?? 10;
+
+// Tabella config SMTP: dalla company, con fallback al default
+string sqlTable = companyCfg?.SqlConfigTableServer ?? "ConfigEmailServer";
 
 // ---------------------------------------------------------------------------
 // Controllo semaforo rosso
@@ -76,11 +78,7 @@ if (string.IsNullOrWhiteSpace(connStrLog))
 // ---------------------------------------------------------------------------
 // DKIM
 // ---------------------------------------------------------------------------
-var dkimCfg = config.GetSection($"Companies")
-    .GetChildren()
-    .FirstOrDefault(s => s["Name"] == company)
-    ?.GetSection("Dkim")
-    .Get<DkimConfig>();
+var dkimCfg = companyCfg?.Dkim;
 
 // ---------------------------------------------------------------------------
 // Esecuzione job
@@ -88,7 +86,7 @@ var dkimCfg = config.GetSection($"Companies")
 var repo = new EmailRepository(connStrMain);
 var log = new EmailRepository(connStrLog);
 
-fileLog.Info("EMailSenderJob", $"Avviato — company: {company} | batch: {batchSize}");
+fileLog.Info("EMailSenderJob", $"Avviato — company: {company} | batch: {batchSize} | tabella: {sqlTable}");
 
 if (dkimCfg is not null && !string.IsNullOrWhiteSpace(dkimCfg.PrivateKeyBase64))
     fileLog.Info("EMailSenderJob", $"DKIM attivo — dominio: {dkimCfg.Domain} | selector: {dkimCfg.Selector}");
@@ -123,7 +121,7 @@ void ProcessJob(EmailJob job)
     var serverCfg = repo.GetServerConfig(job.Company, sqlTable);
     if (serverCfg is null)
     {
-        var errMsg = $"Config SMTP non trovata per company '{job.Company}'";
+        var errMsg = $"Config SMTP non trovata per company '{job.Company}' su tabella '{sqlTable}'";
         fileLog.Error("ProcessJob", errMsg);
         repo.MarkJobFailed(job.EmailId, job.RetryCount + 1, errMsg);
         log.WriteLog(job.Company, "EMailSenderJob", errMsg, "ERRORE");

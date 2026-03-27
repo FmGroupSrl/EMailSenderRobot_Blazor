@@ -3,12 +3,8 @@
   "WorkspaceRootPath": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|solutionrelative:emailsender.web\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\components\\pages\\companies.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
-      "RelativeMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|solutionrelative:emailsender.web\\components\\pages\\companies.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+      "AbsoluteMoniker": "D:0:0:{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}|EMailSender.Core\\EMailSender.Core.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.core\\service\\mailsenderservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}|EMailSender.Core\\EMailSender.Core.csproj|solutionrelative:emailsender.core\\service\\mailsenderservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\components\\pages\\smtpconfig.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
@@ -17,6 +13,22 @@
     {
       "AbsoluteMoniker": "D:0:0:{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}|EMailSender.Core\\EMailSender.Core.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.core\\data\\emailrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{DAD149F7-B976-4565-AC3F-0DBA5300BBF2}|EMailSender.Core\\EMailSender.Core.csproj|solutionrelative:emailsender.core\\data\\emailrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\components\\pages\\monitor.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|solutionrelative:emailsender.web\\components\\pages\\monitor.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}|EMailSender.ConsoleJob\\EMailSender.ConsoleJob.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.consolejob\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{86B8A0A6-38C7-4DD2-A80D-EF32CA450629}|EMailSender.ConsoleJob\\EMailSender.ConsoleJob.csproj|solutionrelative:emailsender.consolejob\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|solutionrelative:emailsender.web\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\components\\pages\\companies.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|solutionrelative:emailsender.web\\components\\pages\\companies.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{0A12ECA8-3562-4E91-8D68-72D3ABCF3BEF}|EMailSender.Web\\EMailSender.Web.csproj|c:\\sviluppo\\fmgroupsrl\\emailsenderrobot_blazor\\src\\emailsenderrobot_blazor\\emailsender.web\\components\\_imports.razor||{40D31677-CBC0-4297-A9EF-89D907823A98}",
@@ -34,8 +46,12 @@
       "DocumentGroups": [
         {
           "DockedHeight": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 3,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
@@ -47,6 +63,55 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "MailSenderService.cs",
+              "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Core\\Service\\MailSenderService.cs",
+              "RelativeDocumentMoniker": "EMailSender.Core\\Service\\MailSenderService.cs",
+              "ToolTip": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Core\\Service\\MailSenderService.cs",
+              "RelativeToolTip": "EMailSender.Core\\Service\\MailSenderService.cs",
+              "ViewState": "AgIAAJAAAAAAAAAAAAAqwK8AAAA7AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-27T09:26:51.519Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "EmailRepository.cs",
+              "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Core\\Data\\EmailRepository.cs",
+              "RelativeDocumentMoniker": "EMailSender.Core\\Data\\EmailRepository.cs",
+              "ToolTip": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Core\\Data\\EmailRepository.cs",
+              "RelativeToolTip": "EMailSender.Core\\Data\\EmailRepository.cs",
+              "ViewState": "AgIAADgAAAAAAAAAAAAQwEEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-24T22:43:51.376Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Monitor.razor",
+              "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\Pages\\Monitor.razor",
+              "RelativeDocumentMoniker": "EMailSender.Web\\Components\\Pages\\Monitor.razor",
+              "ToolTip": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\Pages\\Monitor.razor",
+              "RelativeToolTip": "EMailSender.Web\\Components\\Pages\\Monitor.razor",
+              "ViewState": "AgIAAHYAAAAAAAAAAAAgwIoAAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-03-26T23:05:39.936Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.ConsoleJob\\Program.cs",
+              "RelativeDocumentMoniker": "EMailSender.ConsoleJob\\Program.cs",
+              "ToolTip": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.ConsoleJob\\Program.cs",
+              "RelativeToolTip": "EMailSender.ConsoleJob\\Program.cs",
+              "ViewState": "AgIAAH8AAAAAAAAAAAAgwJMAAAByAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-03-26T22:59:00.622Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Program.cs",
               "RelativeDocumentMoniker": "EMailSender.Web\\Program.cs",
@@ -54,12 +119,11 @@
               "RelativeToolTip": "EMailSender.Web\\Program.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABkAAAAKAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-26T22:14:40.272Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-26T22:14:40.272Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 6,
               "Title": "Companies.razor",
               "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\Pages\\Companies.razor",
               "RelativeDocumentMoniker": "EMailSender.Web\\Components\\Pages\\Companies.razor",
@@ -67,36 +131,23 @@
               "RelativeToolTip": "EMailSender.Web\\Components\\Pages\\Companies.razor",
               "ViewState": "AgIAAKIAAAAAAAAAAAAYwMgAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
-              "WhenOpened": "2026-03-26T17:34:54.393Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-03-26T17:34:54.393Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "SmtpConfig.razor",
               "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\Pages\\SmtpConfig.razor",
               "RelativeDocumentMoniker": "EMailSender.Web\\Components\\Pages\\SmtpConfig.razor",
               "ToolTip": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\Pages\\SmtpConfig.razor",
               "RelativeToolTip": "EMailSender.Web\\Components\\Pages\\SmtpConfig.razor",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAACYBAAAAAAAAAAAkwDwBAAAlAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
               "WhenOpened": "2026-03-26T17:34:37.206Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "EmailRepository.cs",
-              "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Core\\Data\\EmailRepository.cs",
-              "RelativeDocumentMoniker": "EMailSender.Core\\Data\\EmailRepository.cs",
-              "ToolTip": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Core\\Data\\EmailRepository.cs",
-              "RelativeToolTip": "EMailSender.Core\\Data\\EmailRepository.cs",
-              "ViewState": "AgIAADoAAAAAAAAAAAAEwE0AAAAIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-24T22:43:51.376Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 7,
               "Title": "_Imports.razor",
               "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\_Imports.razor",
               "RelativeDocumentMoniker": "EMailSender.Web\\Components\\_Imports.razor",
@@ -108,7 +159,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 8,
               "Title": "Routes.razor",
               "DocumentMoniker": "C:\\Sviluppo\\FmGroupSrl\\EMailSenderRobot_Blazor\\src\\EMailSenderRobot_Blazor\\EMailSender.Web\\Components\\Routes.razor",
               "RelativeDocumentMoniker": "EMailSender.Web\\Components\\Routes.razor",

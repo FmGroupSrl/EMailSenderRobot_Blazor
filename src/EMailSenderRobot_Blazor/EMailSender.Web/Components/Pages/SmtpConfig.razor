@@ -174,8 +174,16 @@
                 <div class="mt-3 alert @(_testIsError ? "alert-danger" : "alert-success")">
                     <div class="fw-bold mb-1">@(_testIsError ? "❌ KO" : "✅ OK")</div>
                     <div>@_testResultMessage</div>
-                    <hr class="my-2" />
-                    <small class="text-muted font-monospace">@_testServerDetails</small>
+                    @if (!string.IsNullOrEmpty(_testServerDetails))
+                    {
+                        <hr class="my-2" />
+                        <small class="text-muted font-monospace">@_testServerDetails</small>
+                    }
+                    @if (!string.IsNullOrEmpty(_testDkimWarning))
+                    {
+                        <hr class="my-2" />
+                        <small class="text-warning font-monospace">⚠ @_testDkimWarning</small>
+                    }
                 </div>
             }
         </div>
@@ -191,7 +199,7 @@
     private string _saveMessage = "";
     private bool _isSaveError;
 
-    // DKIM — letto/scritto sull'appsettings tramite ConfigService
+    // DKIM
     private DkimConfig _dkim = new();
     private string _saveDkimMessage = "";
     private bool _isDkimSaveError;
@@ -202,6 +210,7 @@
     private bool _testIsError;
     private string _testResultMessage = "";
     private string _testServerDetails = "";
+    private string _testDkimWarning = "";
 
     protected override void OnInitialized()
         => _companies = Cfg.GetAllCompanies();
@@ -213,10 +222,10 @@
         _saveDkimMessage = "";
         _testResultMessage = "";
         _testServerDetails = "";
+        _testDkimWarning = "";
 
         if (string.IsNullOrWhiteSpace(_selectedCompany)) return;
 
-        // --- SMTP dal DB ---
         var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
         if (companyCfg is null) return;
 
@@ -235,7 +244,6 @@
         if (result is null)
             _saveMessage = "Nessuna configurazione SMTP trovata — verrà creata al salvataggio.";
 
-        // --- DKIM dall'appsettings (già in CompanySettings) ---
         _dkim = companyCfg.Dkim ?? new DkimConfig();
     }
 
@@ -276,16 +284,14 @@
         var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
         if (companyCfg is null) return;
 
-        // Recupera le connection strings correnti per non perderle durante il salvataggio
         var connStrMain = Config.GetConnectionString($"{_selectedCompany}_Main") ?? "";
         var connStrLog = Config.GetConnectionString($"{_selectedCompany}_Log") ?? "";
 
         try
         {
-            // Aggiorna solo il campo Dkim nella company e riscrive l'appsettings
             companyCfg.Dkim = _dkim;
             Cfg.SaveCompany(companyCfg, connStrMain, connStrLog);
-            _companies = Cfg.GetAllCompanies();  // ricarica la lista locale
+            _companies = Cfg.GetAllCompanies();
             _saveDkimMessage = "Configurazione DKIM salvata.";
         }
         catch (Exception ex)
@@ -299,14 +305,13 @@
     {
         _testResultMessage = "";
         _testServerDetails = "";
+        _testDkimWarning = "";
         _testIsError = false;
         _testRunning = true;
-        StateHasChanged();  // forza il render per mostrare lo spinner
+        StateHasChanged();
 
         await Task.Run(() =>
         {
-            var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
-
             var svc = new MailSenderService();
             svc.SetServerConfig(_cfg);
             svc.SetDkimConfig(_dkim);
@@ -325,6 +330,10 @@
             _testResultMessage = hasError
                 ? svc.ErrorMessage
                 : $"Mail inviata correttamente a {_testEmailTo}";
+
+            // Mostra warning DKIM anche in caso di successo
+            if (!string.IsNullOrEmpty(svc.ErrorMessage) && svc.ErrorMessage.Contains("[DKIM warning:"))
+                _testDkimWarning = svc.ErrorMessage;
 
             _testServerDetails = svc.GetServerDetails();
         });

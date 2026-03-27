@@ -144,7 +144,6 @@ public class MailSenderService
     {
         try
         {
-            // Decodifica la chiave privata RSA da Base64 → PEM → BouncyCastle
             var keyBytes = Convert.FromBase64String(_dkim!.PrivateKeyBase64);
             var pemString = System.Text.Encoding.ASCII.GetString(keyBytes);
 
@@ -152,9 +151,22 @@ public class MailSenderService
             using (var reader = new StringReader(pemString))
             {
                 var pemReader = new PemReader(reader);
-                var keyPair = pemReader.ReadObject() as AsymmetricCipherKeyPair
-                                ?? throw new InvalidOperationException("Chiave DKIM non valida");
-                privateKey = keyPair.Private;
+                var obj = pemReader.ReadObject();
+
+                // PKCS#1: -----BEGIN RSA PRIVATE KEY-----
+                if (obj is AsymmetricCipherKeyPair keyPair)
+                {
+                    privateKey = keyPair.Private;
+                }
+                // PKCS#8: -----BEGIN PRIVATE KEY-----
+                else if (obj is Org.BouncyCastle.Crypto.Parameters.RsaPrivateCrtKeyParameters rsaKey)
+                {
+                    privateKey = rsaKey;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Formato chiave DKIM non riconosciuto: {obj?.GetType().Name ?? "null"}");
+                }
             }
 
             var signer = new DkimSigner(privateKey, _dkim.Domain, _dkim.Selector)
@@ -164,20 +176,18 @@ public class MailSenderService
                 AgentOrUserIdentifier = $"@{_dkim.Domain}",
             };
 
-            // Header da firmare (quelli standard raccomandati)
             var headersToSign = new[]
             {
-                HeaderId.From,
-                HeaderId.Subject,
-                HeaderId.Date,
-                HeaderId.MessageId
-            };
+            HeaderId.From,
+            HeaderId.Subject,
+            HeaderId.Date,
+            HeaderId.MessageId
+        };
 
             signer.Sign(message, headersToSign);
         }
         catch (Exception ex)
         {
-            // La firma DKIM è opzionale: se fallisce logghiamo ma non blocchiamo la spedizione
             ErrorMessage += $" [DKIM warning: {ex.Message}]";
         }
     }

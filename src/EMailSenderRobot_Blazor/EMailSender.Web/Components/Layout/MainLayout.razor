@@ -1,14 +1,12 @@
 ﻿@using EMailSender.Core.Services
 @using EMailSender.Core.Models
+@using System.Reflection
 @inherits LayoutComponentBase
 
 <div class="d-flex flex-column" style="min-height:100vh">
-    <nav class="navbar navbar-dark bg-dark px-3">
+    <nav class="navbar navbar-dark bg-dark px-3 d-flex justify-content-between">
         <a class="navbar-brand fw-bold" href="/">📧 EMailSender</a>
-        @if (_isBlocked)
-        {
-            <span class="badge bg-danger fs-6">🔴 SPEDIZIONI BLOCCATE</span>
-        }
+        <span class="text-secondary small align-self-center">v@_version</span>
     </nav>
 
     <div class="container-fluid flex-grow-1">
@@ -18,22 +16,22 @@
                 <ul class="nav flex-column gap-1">
                     <li class="nav-item">
                         <NavLink class="nav-link text-secondary" href="/" Match="NavLinkMatch.All">
-                            📋 Monitor mail
+                            Monitor mail
                         </NavLink>
                     </li>
                     <li class="nav-item">
                         <NavLink class="nav-link text-secondary" href="/log">
-                            📄 Log
+                            Scheduler Logs
                         </NavLink>
                     </li>
                     <li class="nav-item">
                         <NavLink class="nav-link text-secondary" href="/companies">
-                            🏢 Company
+                            Impostazioni Tenant
                         </NavLink>
                     </li>
                     <li class="nav-item">
                         <NavLink class="nav-link text-secondary" href="/smtpconfig">
-                            ⚙️ Config SMTP
+                            Config SMTP
                         </NavLink>
                     </li>
                 </ul>
@@ -50,8 +48,13 @@
 @code {
     [Inject] ConfigService Cfg { get; set; } = default!;
 
-    private bool _isBlocked;
+    private string _version = "";
 
     protected override void OnInitialized()
-        => _isBlocked = Cfg.IsBlocked();
+    {
+        _version = Assembly.GetExecutingAssembly()
+                           .GetName()
+                           .Version?
+                           .ToString() ?? "—";
+    }
 }

@@ -2,9 +2,6 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
-using MimeKit.Cryptography;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.OpenSsl;
 
 namespace EMailSender.Core.Services;
 
@@ -15,7 +12,6 @@ namespace EMailSender.Core.Services;
 /// Uso base:
 ///   var svc = new MailSenderService();
 ///   svc.SetServerConfig(serverConfig);       // parametri SMTP dal DB
-///   svc.SetDkimConfig(dkimConfig);           // parametri DKIM dall'appsettings
 ///   svc.TO  = new[] { "dest@example.com" };
 ///   svc.EmailObject  = "Oggetto";
 ///   svc.EmailFullBody = "Corpo";
@@ -39,10 +35,8 @@ public class MailSenderService
 
     // --- configurazione (impostata dall'esterno) ---
     private EmailServerConfig? _server;
-    private DkimConfig? _dkim;
 
     public void SetServerConfig(EmailServerConfig cfg) => _server = cfg;
-    public void SetDkimConfig(DkimConfig? cfg) => _dkim = cfg;
 
     /// <summary>
     /// Spedisce la mail. Ritorna true se c'è stato un errore (coerente con il codice originale).
@@ -60,10 +54,6 @@ public class MailSenderService
         }
 
         var message = BuildMessage(isHtml);
-
-        // Firma DKIM se configurata
-        if (_dkim is not null && !string.IsNullOrWhiteSpace(_dkim.PrivateKeyBase64))
-            SignWithDkim(message);
 
         using var client = new SmtpClient();
 
@@ -138,58 +128,6 @@ public class MailSenderService
 
         if (s.Smtp_Auth)
             client.Authenticate(s.Smtp_User, s.Smtp_Password);
-    }
-
-    private void SignWithDkim(MimeMessage message)
-    {
-        try
-        {
-            var keyBytes = Convert.FromBase64String(_dkim!.PrivateKeyBase64);
-            var pemString = System.Text.Encoding.ASCII.GetString(keyBytes);
-
-            AsymmetricKeyParameter privateKey;
-            using (var reader = new StringReader(pemString))
-            {
-                var pemReader = new PemReader(reader);
-                var obj = pemReader.ReadObject();
-
-                // PKCS#1: -----BEGIN RSA PRIVATE KEY-----
-                if (obj is AsymmetricCipherKeyPair keyPair)
-                {
-                    privateKey = keyPair.Private;
-                }
-                // PKCS#8: -----BEGIN PRIVATE KEY-----
-                else if (obj is Org.BouncyCastle.Crypto.Parameters.RsaPrivateCrtKeyParameters rsaKey)
-                {
-                    privateKey = rsaKey;
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Formato chiave DKIM non riconosciuto: {obj?.GetType().Name ?? "null"}");
-                }
-            }
-
-            var signer = new DkimSigner(privateKey, _dkim.Domain, _dkim.Selector)
-            {
-                HeaderCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Simple,
-                BodyCanonicalizationAlgorithm = DkimCanonicalizationAlgorithm.Simple,
-                AgentOrUserIdentifier = $"@{_dkim.Domain}",
-            };
-
-            var headersToSign = new[]
-            {
-            HeaderId.From,
-            HeaderId.Subject,
-            HeaderId.Date,
-            HeaderId.MessageId
-        };
-
-            signer.Sign(message, headersToSign);
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage += $" [DKIM warning: {ex.Message}]";
-        }
     }
 
     /// <summary>

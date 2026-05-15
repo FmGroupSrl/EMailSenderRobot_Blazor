@@ -4,14 +4,13 @@
 @using EMailSender.Core.Models
 @using EMailSender.Core.Services
 @inject ConfigService Cfg
-@inject IConfiguration Config
 
 <h4 class="mb-3">Log applicativo</h4>
 
 <div class="row g-2 mb-3">
     <div class="col-auto">
         <select class="form-select form-select-sm" @bind="_filterCompany">
-            <option value="">— Tutte le company —</option>
+            <option value="">— Tutti i tenant —</option>
             @foreach (var c in _companies)
             {
                 <option value="@c.Name">@c.DisplayName</option>
@@ -38,7 +37,7 @@
             <tr>
                 <th>Data</th>
                 <th>Ora</th>
-                <th>Company</th>
+                <th>Tenant</th>
                 <th>Tipo</th>
                 <th>Operazione</th>
                 <th>Descrizione</th>
@@ -93,7 +92,7 @@
 
         foreach (var c in targets)
         {
-            var connStr = Config.GetConnectionString($"{c.Name}_Log");
+            var connStr = Cfg.GetConnectionString($"{c.Name}_Log");
             if (string.IsNullOrWhiteSpace(connStr)) continue;
 
             var repo = new EmailRepository(connStr);

@@ -50,15 +50,6 @@ int batchSize = argBatch ?? companyCfg?.BatchSize ?? 10;
 string sqlTable = companyCfg?.SqlConfigTableServer ?? "ConfigEmailServer";
 
 // ---------------------------------------------------------------------------
-// Controllo semaforo rosso
-// ---------------------------------------------------------------------------
-if (cfgService.IsBlocked())
-{
-    fileLog.Warn("EMailSenderJob", "Spedizioni BLOCCATE (IsBlocked=true). Uscita.");
-    return;
-}
-
-// ---------------------------------------------------------------------------
 // Connection strings
 // ---------------------------------------------------------------------------
 string? connStrMain = config.GetConnectionString($"{company}_Main");
@@ -76,20 +67,21 @@ if (string.IsNullOrWhiteSpace(connStrLog))
 }
 
 // ---------------------------------------------------------------------------
-// DKIM
-// ---------------------------------------------------------------------------
-var dkimCfg = companyCfg?.Dkim;
-
-// ---------------------------------------------------------------------------
-// Esecuzione job
+// Controllo semaforo rosso — letto dal DB
 // ---------------------------------------------------------------------------
 var repo = new EmailRepository(connStrMain);
 var log = new EmailRepository(connStrLog);
 
-fileLog.Info("EMailSenderJob", $"Avviato — company: {company} | batch: {batchSize} | tabella: {sqlTable}");
+if (repo.GetIsDeliveryBlocked(company, sqlTable))
+{
+    fileLog.Warn("EMailSenderJob", "Spedizioni BLOCCATE (IsDeliveryBlocked=S). Uscita.");
+    return;
+}
 
-if (dkimCfg is not null && !string.IsNullOrWhiteSpace(dkimCfg.PrivateKeyBase64))
-    fileLog.Info("EMailSenderJob", $"DKIM attivo — dominio: {dkimCfg.Domain} | selector: {dkimCfg.Selector}");
+// ---------------------------------------------------------------------------
+// Esecuzione job
+// ---------------------------------------------------------------------------
+fileLog.Info("EMailSenderJob", $"Avviato — tenant: {company} | batch: {batchSize} | tabella: {sqlTable}");
 
 try
 {
@@ -121,7 +113,7 @@ void ProcessJob(EmailJob job)
     var serverCfg = repo.GetServerConfig(job.Company, sqlTable);
     if (serverCfg is null)
     {
-        var errMsg = $"Config SMTP non trovata per company '{job.Company}' su tabella '{sqlTable}'";
+        var errMsg = $"Config SMTP non trovata per tenant '{job.Company}' su tabella '{sqlTable}'";
         fileLog.Error("ProcessJob", errMsg);
         repo.MarkJobFailed(job.EmailId, job.RetryCount + 1, errMsg);
         log.WriteLog(job.Company, "EMailSenderJob", errMsg, "ERRORE");
@@ -130,11 +122,10 @@ void ProcessJob(EmailJob job)
 
     var svc = new MailSenderService();
     svc.SetServerConfig(serverCfg);
-    svc.SetDkimConfig(dkimCfg);
 
-    if (!string.IsNullOrEmpty(job.EmailTo)) svc.TO = job.EmailTo.Split(';');
-    if (!string.IsNullOrEmpty(job.EmailCC)) svc.CC = job.EmailCC.Split(';');
-    if (!string.IsNullOrEmpty(job.EmailCCN)) svc.BCC = job.EmailCCN.Split(';');
+    if (!string.IsNullOrEmpty(job.EmailTo)) svc.TO = job.EmailTo.Split(new char[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries);
+    if (!string.IsNullOrEmpty(job.EmailCC)) svc.CC = job.EmailCC.Split(new char[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries);
+    if (!string.IsNullOrEmpty(job.EmailCCN)) svc.BCC = job.EmailCCN.Split(new char[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries);
     if (!string.IsNullOrEmpty(job.EmailAttachments)) svc.Attachments = job.EmailAttachments.Split(';');
 
     svc.EmailObject = job.EmailObject;

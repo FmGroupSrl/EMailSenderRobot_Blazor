@@ -39,20 +39,11 @@ public class EmailServerConfig
     public string Smtp_Password { get; set; } = "";
     public string Smtp_Sender { get; set; } = "";
     public string Smtp_SenderAlias { get; set; } = "";
+    public bool IsDeliveryBlocked { get; set; } = false;
 }
 
 /// <summary>
-/// Parametri DKIM letti dall'appsettings.json — NON dal DB
-/// </summary>
-public class DkimConfig
-{
-    public string PrivateKeyBase64 { get; set; } = "";
-    public string Domain { get; set; } = "";
-    public string Selector { get; set; } = "";
-}
-
-/// <summary>
-/// Configurazione completa di una company — letta dall'appsettings.json.
+/// Configurazione completa di un tenant — letta dall'appsettings.json.
 /// I parametri SMTP stanno invece sul DB (ConfigEmailServer).
 /// </summary>
 public class CompanySettings
@@ -67,7 +58,6 @@ public class CompanySettings
     public string BackupEmailType { get; set; } = "";
     public string SqlConfigTableServer { get; set; } = "ConfigEmailServer";
     public string SemaphoreFilePath { get; set; } = "";
-    public DkimConfig Dkim { get; set; } = new();
 
     // Proprietà calcolate — non serializzate nel JSON
     public bool IsSemaphoreRed => !string.IsNullOrWhiteSpace(SemaphoreFilePath)

@@ -4,7 +4,6 @@
 @using EMailSender.Core.Models
 @using EMailSender.Core.Services
 @inject ConfigService Cfg
-@inject IConfiguration Config
 
 <h4 class="mb-3">Monitor mail</h4>
 
@@ -12,7 +11,7 @@
 <div class="row g-2 mb-3">
     <div class="col-auto">
         <select class="form-select form-select-sm" @bind="_filterCompany">
-            <option value="">— Tutte le company —</option>
+            <option value="">— Tutti i tenant —</option>
             @foreach (var c in _companies)
             {
                 <option value="@c.Name">@c.DisplayName</option>
@@ -40,7 +39,7 @@
         <thead class="table-dark">
             <tr>
                 <th>Id</th>
-                <th>Company</th>
+                <th>Tenant</th>
                 <th>Riferimento</th>
                 <th>A</th>
                 <th>Oggetto</th>
@@ -132,7 +131,7 @@
 
         foreach (var c in targets)
         {
-            var connStr = Config.GetConnectionString($"{c.Name}_Main");
+            var connStr = Cfg.GetConnectionString($"{c.Name}_Main");
             if (string.IsNullOrWhiteSpace(connStr)) continue;
 
             var repo = new EmailRepository(connStr);
@@ -153,7 +152,6 @@
         _jobs = [.. _jobs.OrderByDescending(j => j.EmailId)];
     }
 
-
     private void Reset()
     {
         _filterCompany = "";
@@ -163,7 +161,7 @@
 
     private void Requeue(EmailJob job)
     {
-        var connStr = Config.GetConnectionString($"{job.Company}_Main");
+        var connStr = Cfg.GetConnectionString($"{job.Company}_Main");
         if (string.IsNullOrWhiteSpace(connStr)) return;
 
         var repo = new EmailRepository(connStr);

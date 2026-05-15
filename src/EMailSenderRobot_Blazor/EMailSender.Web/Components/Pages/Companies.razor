@@ -2,27 +2,15 @@
 @rendermode InteractiveServer
 @using EMailSender.Core.Models
 @using EMailSender.Core.Services
+@using EMailSender.Core.Data
 @inject ConfigService Cfg
-@inject IConfiguration Config
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0">Gestione Company</h4>
-    <button class="btn btn-sm btn-success" @onclick="NewCompany">+ Nuova company</button>
+    <h4 class="mb-0">Gestione Tenant</h4>
+    <button class="btn btn-sm btn-success" @onclick="NewCompany">+ Nuovo tenant</button>
 </div>
 
-@* Semaforo globale *@
-<div class="alert @(_isBlocked ? "alert-danger" : "alert-success") d-flex align-items-center gap-3 mb-4">
-    <span class="fs-5">@(_isBlocked ? "🔴" : "🟢")</span>
-    <span class="fw-semibold">
-        @(_isBlocked ? "Spedizioni BLOCCATE — nessuna mail verrà inviata" : "Spedizioni attive")
-    </span>
-    <button class="btn btn-sm @(_isBlocked ? "btn-success" : "btn-danger") ms-auto"
-            @onclick="ToggleBlocked">
-        @(_isBlocked ? "✅ Sblocca spedizioni" : "🛑 Blocca spedizioni")
-    </button>
-</div>
-
-@* Lista company *@
+@* Lista tenant *@
 <table class="table table-sm table-hover align-middle mb-5">
     <thead class="table-dark">
         <tr>
@@ -31,7 +19,7 @@
             <th>Batch</th>
             <th>MaxRetry</th>
             <th>Log (gg)</th>
-            <th>DKIM</th>
+            <th>Stato</th>
             <th></th>
         </tr>
     </thead>
@@ -45,14 +33,10 @@
                 <td>@c.MaxRetryCount</td>
                 <td>@c.LogRetentionDays</td>
                 <td>
-                    @if (!string.IsNullOrWhiteSpace(c.Dkim?.Domain))
-                    {
-                        <span class="badge bg-info text-dark">✔ @c.Dkim.Domain</span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-secondary">—</span>
-                    }
+                    <button class="btn btn-sm @(_blockedMap.TryGetValue(c.Name, out var bl) && bl ? "btn-danger" : "btn-success")"
+                            @onclick="() => ToggleTenantBlocked(c)">
+                        @(_blockedMap.TryGetValue(c.Name, out var bl2) && bl2 ? "Servizio fermato" : "Servizio avviato")
+                    </button>
                 </td>
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-primary"
@@ -72,7 +56,7 @@
 @* Form aggiunta/modifica *@
 <div class="card shadow-sm">
     <div class="card-header bg-dark text-white">
-        @(_isNew ? "Nuova company" : $"Modifica: {_edit.Name}")
+        @(_isNew ? "Nuovo tenant" : $"Modifica: {_edit.Name}")
     </div>
     <div class="card-body">
         <div class="row g-3">
@@ -99,7 +83,7 @@
             <div class="col-md-5">
                 <label class="form-label fw-semibold">Directory log file</label>
                 <input class="form-control" @bind="_edit.LogDirectory"
-                       placeholder="C:\EMailSender\Logs\CompanyA" />
+                       placeholder="C:\EMailSender\Logs\TenantA" />
             </div>
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Backup company</label>
@@ -141,22 +125,51 @@
 
 @code {
     private List<CompanySettings> _companies = [];
-    private CompanySettings _edit = new() { Dkim = new() };
+    private CompanySettings _edit = new();
     private bool _isNew = true;
     private bool _isBlocked;
     private string _connStrMain = "";
     private string _connStrLog = "";
     private string _message = "";
+    private Dictionary<string, bool> _blockedMap = new();
 
     protected override void OnInitialized()
     {
         _companies = Cfg.GetAllCompanies();
+        LoadBlockedStates();
         _isBlocked = Cfg.IsBlocked();
+    }
+
+    private void LoadBlockedStates()
+    {
+        _blockedMap = new();
+        foreach (var c in _companies)
+        {
+            var connStr = Cfg.GetConnectionString($"{c.Name}_Main");
+            if (string.IsNullOrWhiteSpace(connStr)) continue;
+            try
+            {
+                var repo = new EmailRepository(connStr);
+                _blockedMap[c.Name] = repo.GetIsDeliveryBlocked(c.Name, c.SqlConfigTableServer);
+            }
+            catch { _blockedMap[c.Name] = false; }
+        }
+    }
+
+    private void ToggleTenantBlocked(CompanySettings c)
+    {
+        var connStr = Cfg.GetConnectionString($"{c.Name}_Main");
+        if (string.IsNullOrWhiteSpace(connStr)) return;
+
+        var current = _blockedMap.TryGetValue(c.Name, out var val) && val;
+        var repo = new EmailRepository(connStr);
+        repo.SetIsDeliveryBlocked(c.Name, !current, c.SqlConfigTableServer);
+        _blockedMap[c.Name] = !current;
     }
 
     private void NewCompany()
     {
-        _edit = new() { Dkim = new() };
+        _edit = new();
         _connStrMain = "";
         _connStrLog = "";
         _isNew = true;
@@ -167,9 +180,8 @@
     {
         _edit = System.Text.Json.JsonSerializer.Deserialize<CompanySettings>(
                            System.Text.Json.JsonSerializer.Serialize(c))!;
-        _edit.Dkim ??= new();
-        _connStrMain = Config.GetConnectionString($"{c.Name}_Main") ?? "";
-        _connStrLog = Config.GetConnectionString($"{c.Name}_Log") ?? "";
+        _connStrMain = Cfg.GetConnectionString($"{c.Name}_Main") ?? "";
+        _connStrLog = Cfg.GetConnectionString($"{c.Name}_Log") ?? "";
         _isNew = false;
         _message = "";
     }
@@ -183,7 +195,7 @@
         }
         Cfg.SaveCompany(_edit, _connStrMain, _connStrLog);
         _companies = Cfg.GetAllCompanies();
-        _message = $"Company '{_edit.Name}' salvata.";
+        _message = $"Tenant '{_edit.Name}' salvato.";
         NewCompany();
     }
 

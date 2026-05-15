@@ -7,6 +7,8 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     ContentRootPath = AppContext.BaseDirectory   // << forza la root alla cartella dell'exe
 });
 
+builder.Host.UseWindowsService();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 

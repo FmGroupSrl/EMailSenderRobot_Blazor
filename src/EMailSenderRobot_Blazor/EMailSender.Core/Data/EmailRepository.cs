@@ -201,7 +201,8 @@ public class EmailRepository
             Smtp_User = rdr["Smtp_User"].ToString()!,
             Smtp_Password = rdr["Smtp_Password"].ToString()!,
             Smtp_Sender = rdr["Smtp_Sender"].ToString()!,
-            Smtp_SenderAlias = rdr["Smtp_SenderAlias"].ToString()!
+            Smtp_SenderAlias = rdr["Smtp_SenderAlias"].ToString()!,
+            IsDeliveryBlocked = rdr["IsDeliveryBlocked"].ToString()!.ToUpper() == "S"
         };
     }
 
@@ -210,20 +211,22 @@ public class EmailRepository
     /// </summary>
     public void SaveServerConfig(EmailServerConfig cfg, string tableName = "ConfigEmailServer")
     {
-        // Verifica se esiste già
         var existing = GetServerConfig(cfg.Company, tableName);
 
         var sql = existing is null
             ? $@"INSERT INTO {tableName}
                  (company, Smtp_Server, Smtp_Port, Smtp_Ssl, Smtp_StartTls,
-                  Smtp_Auth, Smtp_User, Smtp_Password, Smtp_Sender, Smtp_SenderAlias)
+                  Smtp_Auth, Smtp_User, Smtp_Password, Smtp_Sender, Smtp_SenderAlias,
+                  IsDeliveryBlocked)
                  VALUES
                  (@company, @server, @port, @ssl, @tls,
-                  @auth, @user, @pwd, @sender, @alias)"
+                  @auth, @user, @pwd, @sender, @alias,
+                  @blocked)"
             : $@"UPDATE {tableName} SET
                  Smtp_Server=@server, Smtp_Port=@port, Smtp_Ssl=@ssl, Smtp_StartTls=@tls,
                  Smtp_Auth=@auth, Smtp_User=@user, Smtp_Password=@pwd,
-                 Smtp_Sender=@sender, Smtp_SenderAlias=@alias
+                 Smtp_Sender=@sender, Smtp_SenderAlias=@alias,
+                 IsDeliveryBlocked=@blocked
                  WHERE company=@company";
 
         using var conn = new SqlConnection(_connStr);
@@ -238,6 +241,37 @@ public class EmailRepository
         cmd.Parameters.Add("@pwd", SqlDbType.NVarChar).Value = cfg.Smtp_Password;
         cmd.Parameters.Add("@sender", SqlDbType.NVarChar).Value = cfg.Smtp_Sender;
         cmd.Parameters.Add("@alias", SqlDbType.NVarChar).Value = cfg.Smtp_SenderAlias;
+        cmd.Parameters.Add("@blocked", SqlDbType.NChar).Value = cfg.IsDeliveryBlocked ? "S" : "N";
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Legge il flag IsDeliveryBlocked dalla tabella ConfigEmailServer per la company indicata.
+    /// </summary>
+    public bool GetIsDeliveryBlocked(string company, string tableName = "ConfigEmailServer")
+    {
+        var sql = $"SELECT IsDeliveryBlocked FROM {tableName} WHERE company = @company";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        conn.Open();
+        var result = cmd.ExecuteScalar();
+        return result?.ToString()?.ToUpper() == "S";
+    }
+
+    /// <summary>
+    /// Imposta il flag IsDeliveryBlocked sulla tabella ConfigEmailServer per la company indicata.
+    /// </summary>
+    public void SetIsDeliveryBlocked(string company, bool blocked, string tableName = "ConfigEmailServer")
+    {
+        var sql = $"UPDATE {tableName} SET IsDeliveryBlocked = @blocked WHERE company = @company";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@blocked", SqlDbType.NChar).Value = blocked ? "S" : "N";
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
         conn.Open();
         cmd.ExecuteNonQuery();
     }

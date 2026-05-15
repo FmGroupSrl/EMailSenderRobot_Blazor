@@ -16,7 +16,7 @@ for /f "tokens=1-2 delims=:" %%a in ("%time: =0%") do (
     set _hour=%%a
     set _min=%%b
 )
-set VERSION=1.0.%_year%%_month%%_day%.%_hour%%_min%
+set VERSION=1.0.%_year:~2,2%%_month%.%_day%%_hour%
 echo.
 echo === Versione: %VERSION% ===
 

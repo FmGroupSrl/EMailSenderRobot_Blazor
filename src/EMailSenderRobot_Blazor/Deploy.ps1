@@ -50,10 +50,10 @@ Copy-Item -Path "$PSScriptRoot\RestartServices.ps1" -Destination "$DST_BASE\Rest
 Copy-Item -Path "$PSScriptRoot\StartServices.ps1"   -Destination "$DST_BASE\StartServices.ps1"   -Force
 Copy-Item -Path "$PSScriptRoot\StopServices.ps1"    -Destination "$DST_BASE\StopServices.ps1"    -Force
 
+Write-Host "    Fatto." -ForegroundColor Cyan
+
 Write-Host "=== Copia script ReadMe.md in C:\EMailSender ===" -ForegroundColor Yellow
 Copy-Item -Path "$PSScriptRoot\ReadMe.md"    -Destination "$DST_BASE\ReadMe.md"    -Force
-
-
 
 Write-Host "    Fatto." -ForegroundColor Cyan
 

@@ -66,7 +66,7 @@ echo === Copia Deploy.ps1 in publish ===
 copy /Y "%~dp0Deploy.ps1" "%~dp0..\..\publish\Deploy.ps1"
 
 echo === Copia FirstInstall.ps1 in publish ===
-copy /Y "%~dp0First Install.cmd" "%~dp0..\..\publish\FirstInstall.cmd"
+copy /Y "%~dp0FirstInstall.cmd" "%~dp0..\..\publish\FirstInstall.cmd"
 
 echo === Copia RestartServices.ps1 in publish ===
 copy /Y "%~dp0RestartServices.ps1" "%~dp0..\..\publish\RestartServices.ps1"
@@ -76,6 +76,9 @@ copy /Y "%~dp0StartServices.ps1" "%~dp0..\..\publish\StartServices.ps1"
 
 echo === Copia StopServices.ps1 in publish ===
 copy /Y "%~dp0StopServices.ps1" "%~dp0..\..\publish\StopServices.ps1"
+
+echo === Copia ReadMe.md in publish ===
+copy /Y "%~dp0ReadMe.md" "%~dp0..\..\publish\ReadMe.md"
 
 
 echo.

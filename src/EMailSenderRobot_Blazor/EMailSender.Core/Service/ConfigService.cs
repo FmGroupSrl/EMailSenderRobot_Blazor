@@ -151,6 +151,53 @@ public class ConfigService
     }
 
     // -------------------------------------------------------------------------
+    // VALIDAZIONE CONFIGURAZIONE
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Valida la configurazione corrente e restituisce una lista di warning.
+    /// Chiamato all'avvio per avvertire di chiavi mancanti o incomplete.
+    /// Ritorna lista vuota se tutto è OK.
+    /// </summary>
+    public List<string> GetConfigWarnings()
+    {
+        var warnings = new List<string>();
+        var root = ReadRoot();
+
+        // DefaultTenants
+        var defaultTenants = root["DefaultTenants"]?.AsArray();
+        if (defaultTenants is null || defaultTenants.Count == 0)
+            warnings.Add("Sezione 'DefaultTenants' mancante o vuota in appsettings.json");
+
+        // Companies
+        var companies = GetAllCompanies();
+        if (!companies.Any())
+        {
+            warnings.Add("Nessun tenant configurato in appsettings.json");
+            return warnings; // inutile andare avanti
+        }
+
+        foreach (var c in companies)
+        {
+            var prefix = $"Tenant '{c.Name}'";
+
+            if (string.IsNullOrWhiteSpace(c.DisplayName))
+                warnings.Add($"{prefix}: 'DisplayName' mancante");
+
+            if (string.IsNullOrWhiteSpace(c.LogDirectory))
+                warnings.Add($"{prefix}: 'LogDirectory' mancante");
+
+            if (string.IsNullOrWhiteSpace(GetConnectionString($"{c.Name}_Main")))
+                warnings.Add($"{prefix}: connection string '{c.Name}_Main' mancante");
+
+            if (string.IsNullOrWhiteSpace(GetConnectionString($"{c.Name}_Log")))
+                warnings.Add($"{prefix}: connection string '{c.Name}_Log' mancante");
+        }
+
+        return warnings;
+    }
+
+    // -------------------------------------------------------------------------
     // HELPER PRIVATI
     // -------------------------------------------------------------------------
 

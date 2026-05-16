@@ -2,9 +2,6 @@
 @using EMailSender.Core.Models
 @using System.Reflection
 @inherits LayoutComponentBase
-@inject TenantService TenantSvc
-@inject IJSRuntime JS
-@inject NavigationManager Nav
 
 <div class="d-flex flex-column" style="min-height:100vh">
     <nav class="navbar navbar-dark bg-dark px-3">
@@ -38,13 +35,30 @@
         </ul>
         <span class="text-secondary small">v@_version</span>
     </nav>
+
+    @* Banner warning configurazione *@
+    @if (_warnings.Any())
+    {
+        <div class="alert alert-warning mb-0 rounded-0 py-2 px-4" style="border-left: 4px solid #fd7e14;">
+            <strong>Attenzione — configurazione incompleta:</strong>
+            <ul class="mb-0 mt-1">
+                @foreach (var w in _warnings)
+                {
+                    <li>@w</li>
+                }
+            </ul>
+        </div>
+    }
+
     <main class="container-fluid py-4 px-4">
         @Body
     </main>
 </div>
 
 @code {
+    [Inject] ConfigService Cfg { get; set; } = default!;
     private string _version = "";
+    private List<string> _warnings = [];
 
     protected override void OnInitialized()
     {
@@ -52,5 +66,6 @@
                            .GetName()
                            .Version?
                            .ToString() ?? "—";
+        _warnings = Cfg.GetConfigWarnings();
     }
 }

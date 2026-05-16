@@ -4,12 +4,14 @@
 @using EMailSender.Core.Models
 @using EMailSender.Core.Services
 @inject ConfigService Cfg
+@inject TenantService TenantSvc
+@inject IJSRuntime JS
 
 <h4 class="mb-3">Log applicativo</h4>
 
-<div class="row g-2 mb-3">
+<div class="row g-2 mb-3 align-items-center">
     <div class="col-auto">
-        <select class="form-select form-select-sm" @bind="_filterCompany">
+        <select class="form-select form-select-sm" @bind="_selectedCompany" @bind:after="OnCompanyChanged">
             <option value="">— Tutti i tenant —</option>
             @foreach (var c in _companies)
             {
@@ -31,64 +33,102 @@
     </div>
 </div>
 
-<div class="table-responsive">
-    <table class="table table-sm table-hover align-middle" style="font-size:.85rem">
-        <thead class="table-dark">
-            <tr>
-                <th>Data</th>
-                <th>Ora</th>
-                <th>Tenant</th>
-                <th>Tipo</th>
-                <th>Operazione</th>
-                <th>Descrizione</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var e in _entries)
-            {
-                var rowCss = e.Tipo == "ERRORE" ? "table-danger" :
-                e.Tipo == "RISULTATO" ? "table-success" : "";
-                <tr class="@rowCss">
-                    <td>@e.Data</td>
-                    <td>@e.Ora</td>
-                    <td>@e.Company</td>
-                    <td>
-                        <span class="badge @(e.Tipo == "ERRORE" ? "bg-danger" : e.Tipo == "RISULTATO" ? "bg-success" : "bg-secondary")">
-                            @e.Tipo
-                        </span>
-                    </td>
-                    <td>@e.Operazione</td>
-                    <td>@e.Descr</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</div>
-
-@if (!_entries.Any())
+@if (_loading)
 {
-    <p class="text-muted">Nessun log trovato.</p>
+    <div class="d-flex align-items-center gap-2 mt-3">
+        <div class="spinner-border spinner-border-sm text-secondary"></div>
+        <span class="text-muted">Caricamento...</span>
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle" style="font-size:.85rem">
+            <thead class="table-dark">
+                <tr>
+                    <th>Data</th>
+                    <th>Ora</th>
+                    <th>Tenant</th>
+                    <th>Tipo</th>
+                    <th>Operazione</th>
+                    <th>Descrizione</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in _entries)
+                {
+                    var rowCss = e.Tipo == "ERRORE" ? "table-danger" :
+                    e.Tipo == "RISULTATO" ? "table-success" : "";
+                    <tr class="@rowCss">
+                        <td>@e.Data</td>
+                        <td>@e.Ora</td>
+                        <td>@e.Company</td>
+                        <td>
+                            <span class="badge @(e.Tipo == "ERRORE" ? "bg-danger" : e.Tipo == "RISULTATO" ? "bg-success" : "bg-secondary")">
+                                @e.Tipo
+                            </span>
+                        </td>
+                        <td>@e.Operazione</td>
+                        <td>@e.Descr</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (!_entries.Any())
+    {
+        <p class="text-muted">Nessun log trovato.</p>
+    }
 }
 
 @code {
     private List<CompanySettings> _companies = [];
+    private string _selectedCompany = "";
     private List<LogEntry> _entries = [];
-    private string _filterCompany = "";
     private string _filterTipo = "";
+    private bool _loading = false;
 
     protected override void OnInitialized()
     {
         _companies = Cfg.GetAllCompanies();
-        LoadLogs();
+        _selectedCompany = TenantSvc.SelectedCompany;
+        _ = LoadLogs();
     }
 
-    private void LoadLogs()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender && string.IsNullOrWhiteSpace(_selectedCompany))
+        {
+            var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", "selectedCompany");
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                _selectedCompany = saved;
+                TenantSvc.SelectedCompany = saved;
+                _ = LoadLogs();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task OnCompanyChanged()
+    {
+        TenantSvc.SelectedCompany = _selectedCompany;
+        await JS.InvokeVoidAsync("sessionStorage.setItem", "selectedCompany", _selectedCompany);
+        _ = LoadLogs();
+    }
+
+    private async Task LoadLogs()
+    {
+        _loading = true;
+        StateHasChanged();
+        await Task.Yield();
+
         _entries = [];
 
-        var targets = string.IsNullOrWhiteSpace(_filterCompany)
+        var targets = string.IsNullOrWhiteSpace(_selectedCompany)
             ? _companies
-            : _companies.Where(c => c.Name == _filterCompany).ToList();
+            : _companies.Where(c => c.Name == _selectedCompany).ToList();
 
         foreach (var c in targets)
         {
@@ -105,12 +145,14 @@
         }
 
         _entries = [.. _entries.OrderByDescending(e => e.Id)];
+
+        _loading = false;
+        StateHasChanged();
     }
 
     private void Reset()
     {
-        _filterCompany = "";
         _filterTipo = "";
-        LoadLogs();
+        _ = LoadLogs();
     }
 }

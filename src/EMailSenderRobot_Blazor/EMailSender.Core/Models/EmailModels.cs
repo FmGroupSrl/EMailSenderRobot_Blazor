@@ -77,3 +77,42 @@ public class LogEntry
     public string Operazione { get; set; } = "";
     public string Descr { get; set; } = "";
 }
+
+/// <summary>
+/// Rappresenta una riga della tabella ConfigEmailContent.
+/// Chiave logica: Company + Type + Language.
+///
+/// Logica di fallback nella lettura (GetEmailContentWithFallback):
+///   1. Cerca la lingua richiesta
+///   2. Se non trovata → cerca EN
+///   3. Se non trovata → cerca IT
+///   4. Se non trovata → null (errore esplicito al chiamante)
+/// </summary>
+public class ConfigEmailContent
+{
+    public string Company { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string Language { get; set; } = "IT";
+    public string EmailHeader { get; set; } = "";
+    public string EmailBody { get; set; } = "";
+    public string EmailBodyRowRepeater { get; set; } = "";
+    public string EmailFooter { get; set; } = "";
+    public string EmailObject { get; set; } = "";
+    public string EmailIsHtml { get; set; } = "N";
+}
+
+/// <summary>
+/// Rappresenta una riga della tabella ConfigEmailAddress.
+/// Chiave logica: Company + Type.
+/// Gli indirizzi non variano per lingua.
+/// Description è il campo descrittivo del tipo di mail (condiviso con ConfigEmailContent).
+/// </summary>
+public class ConfigEmailAddress
+{
+    public string Company { get; set; } = "";
+    public string Type { get; set; } = "";
+    public string EmailTO { get; set; } = "";
+    public string EmailCC { get; set; } = "";
+    public string EmailCCN { get; set; } = "";
+    public string Description { get; set; } = "";
+}

@@ -4,13 +4,14 @@
 @using EMailSender.Core.Models
 @using EMailSender.Core.Services
 @inject ConfigService Cfg
+@inject TenantService TenantSvc
+@inject IJSRuntime JS
 
 <h4 class="mb-3">Monitor mail</h4>
 
-@* Filtri *@
-<div class="row g-2 mb-3">
+<div class="row g-2 mb-3 align-items-center">
     <div class="col-auto">
-        <select class="form-select form-select-sm" @bind="_filterCompany">
+        <select class="form-select form-select-sm" @bind="_selectedCompany" @bind:after="OnCompanyChanged">
             <option value="">— Tutti i tenant —</option>
             @foreach (var c in _companies)
             {
@@ -33,101 +34,138 @@
     </div>
 </div>
 
-@* Tabella *@
-<div class="table-responsive">
-    <table class="table table-sm table-hover align-middle">
-        <thead class="table-dark">
-            <tr>
-                <th>Id</th>
-                <th>Tenant</th>
-                <th>Riferimento</th>
-                <th>A</th>
-                <th>Oggetto</th>
-                <th>Creata</th>
-                <th>Spedita</th>
-                <th>Stato</th>
-                <th>Tentativi</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var j in _jobs)
-            {
-                <tr>
-                    <td>@j.EmailId</td>
-                    <td>@j.Company</td>
-                    <td>@j.JobReference</td>
-                    <td title="@j.EmailTo">
-                        @(j.EmailTo.Length > 30 ? j.EmailTo[..30] + "…" : j.EmailTo)
-                    </td>
-                    <td>@j.EmailObject</td>
-                    <td>@j.CreationTimeStamp?.ToString("dd/MM/yy HH:mm")</td>
-                    <td>@j.SentTimeStamp?.ToString("dd/MM/yy HH:mm")</td>
-                    <td>
-                        @if (j.SentTimeStamp.HasValue)
-                        {
-                            <span class="badge bg-success">Spedita</span>
-                        }
-                        else if (j.IsError == "A")
-                        {
-                            <span class="badge bg-dark" title="@j.ErrorMessage">Annullata</span>
-                        }
-                        else if (j.IsError == "S")
-                        {
-                            <span class="badge bg-danger" title="@j.ErrorMessage">Errore</span>
-                        }
-                        else
-                        {
-                            <span class="badge bg-secondary">In coda</span>
-                        }
-                    </td>
-                    <td>@j.RetryCount</td>
-                    <td>
-                        @if (!j.SentTimeStamp.HasValue)
-                        {
-                            <button class="btn btn-sm btn-outline-warning"
-                                    @onclick="() => Requeue(j)">
-                                ↩ Reinvia
-                            </button>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</div>
-
-@if (!_jobs.Any())
+@if (_loading)
 {
-    <p class="text-muted">Nessun risultato.</p>
+    <div class="d-flex align-items-center gap-2 mt-3">
+        <div class="spinner-border spinner-border-sm text-secondary"></div>
+        <span class="text-muted">Caricamento...</span>
+    </div>
 }
-
-@if (!string.IsNullOrEmpty(_message))
+else
 {
-    <div class="alert alert-info mt-2">@_message</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Id</th>
+                    <th>Tenant</th>
+                    <th>Riferimento</th>
+                    <th>A</th>
+                    <th>Oggetto</th>
+                    <th>Creata</th>
+                    <th>Spedita</th>
+                    <th>Stato</th>
+                    <th>Tentativi</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var j in _jobs)
+                {
+                    <tr>
+                        <td>@j.EmailId</td>
+                        <td>@j.Company</td>
+                        <td>@j.JobReference</td>
+                        <td title="@j.EmailTo">
+                            @(j.EmailTo.Length > 30 ? j.EmailTo[..30] + "…" : j.EmailTo)
+                        </td>
+                        <td>@j.EmailObject</td>
+                        <td>@j.CreationTimeStamp?.ToString("dd/MM/yy HH:mm")</td>
+                        <td>@j.SentTimeStamp?.ToString("dd/MM/yy HH:mm")</td>
+                        <td>
+                            @if (j.SentTimeStamp.HasValue)
+                            {
+                                <span class="badge bg-success">Spedita</span>
+                            }
+                            else if (j.IsError == "A")
+                            {
+                                <span class="badge bg-dark" title="@j.ErrorMessage">Annullata</span>
+                            }
+                            else if (j.IsError == "S")
+                            {
+                                <span class="badge bg-danger" title="@j.ErrorMessage">Errore</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">In coda</span>
+                            }
+                        </td>
+                        <td>@j.RetryCount</td>
+                        <td>
+                            @if (!j.SentTimeStamp.HasValue)
+                            {
+                                <button class="btn btn-sm btn-outline-warning"
+                                        @onclick="() => Requeue(j)">
+                                    Reinvia
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (!_jobs.Any())
+    {
+        <p class="text-muted">Nessun risultato.</p>
+    }
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="alert alert-info mt-2">@_message</div>
+    }
 }
 
 @code {
     private List<CompanySettings> _companies = [];
+    private string _selectedCompany = "";
     private List<EmailJob> _jobs = [];
-    private string _filterCompany = "";
     private string _filterStatus = "";
     private string _message = "";
+    private bool _loading = false;
 
     protected override void OnInitialized()
     {
         _companies = Cfg.GetAllCompanies();
-        LoadJobs();
+        _selectedCompany = TenantSvc.SelectedCompany;
+        _ = LoadJobs();
     }
 
-    private void LoadJobs()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _jobs = [];
-        _message = "";
+        if (firstRender && string.IsNullOrWhiteSpace(_selectedCompany))
+        {
+            var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", "selectedCompany");
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                _selectedCompany = saved;
+                TenantSvc.SelectedCompany = saved;
+                _ = LoadJobs();
+                StateHasChanged();
+            }
+        }
+    }
 
-        var targets = string.IsNullOrWhiteSpace(_filterCompany)
+    private async Task OnCompanyChanged()
+    {
+        TenantSvc.SelectedCompany = _selectedCompany;
+        await JS.InvokeVoidAsync("sessionStorage.setItem", "selectedCompany", _selectedCompany);
+        _ = LoadJobs();
+    }
+
+    private async Task LoadJobs()
+    {
+        _loading = true;
+        _message = "";
+        StateHasChanged();
+        await Task.Yield();
+
+        _jobs = [];
+
+        var targets = string.IsNullOrWhiteSpace(_selectedCompany)
             ? _companies
-            : _companies.Where(c => c.Name == _filterCompany).ToList();
+            : _companies.Where(c => c.Name == _selectedCompany).ToList();
 
         foreach (var c in targets)
         {
@@ -150,13 +188,15 @@
         }
 
         _jobs = [.. _jobs.OrderByDescending(j => j.EmailId)];
+
+        _loading = false;
+        StateHasChanged();
     }
 
     private void Reset()
     {
-        _filterCompany = "";
         _filterStatus = "";
-        LoadJobs();
+        _ = LoadJobs();
     }
 
     private void Requeue(EmailJob job)
@@ -167,6 +207,6 @@
         var repo = new EmailRepository(connStr);
         repo.RequeueJob(job.EmailId);
         _message = $"Email ID {job.EmailId} rimessa in coda.";
-        LoadJobs();
+        _ = LoadJobs();
     }
 }

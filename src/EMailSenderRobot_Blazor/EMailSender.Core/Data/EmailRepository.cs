@@ -324,6 +324,359 @@ public class EmailRepository
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Salva (INSERT o UPDATE) un record di ConfigEmailContent.
+    /// Usa MERGE per gestire sia insert che update in un'unica istruzione.
+    /// </summary>
+        /// <summary>
+    /// Elimina un record da ConfigEmailContent per company + type.
+    /// </summary>
+    public void DeleteEmailContent(string company, string type)
+    {
+        const string sql = "DELETE FROM ConfigEmailContent WHERE Company = @company AND Type = @type";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Elimina un record da ConfigEmailAddress per company + type.
+    /// </summary>
+    public void DeleteEmailAddress(string company, string type)
+    {
+        const string sql = "DELETE FROM ConfigEmailAddress WHERE Company = @company AND Type = @type";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    // -------------------------------------------------------------------------
+    // CONFIG EMAIL CONTENT
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Restituisce tutti i record di ConfigEmailContent per la company indicata,
+    /// ordinati per Type e Language.
+    /// </summary>
+    public List<ConfigEmailContent> GetEmailContents(string company)
+    {
+        const string sql = @"
+            SELECT Company, Type, Language, EmailHeader, EmailBody, EmailBodyRowRepeater,
+                   EmailFooter, EmailObject, EmailIsHtml
+              FROM ConfigEmailContent
+             WHERE Company = @company
+             ORDER BY Type, Language";
+
+        var list = new List<ConfigEmailContent>();
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        conn.Open();
+        using var rdr = cmd.ExecuteReader();
+        while (rdr.Read())
+            list.Add(MapEmailContent(rdr));
+
+        return list;
+    }
+
+    /// <summary>
+    /// Restituisce un singolo record di ConfigEmailContent per company + type + language.
+    /// Ritorna null se non trovato.
+    /// </summary>
+    public ConfigEmailContent? GetEmailContent(string company, string type, string language)
+    {
+        const string sql = @"
+            SELECT Company, Type, Language, EmailHeader, EmailBody, EmailBodyRowRepeater,
+                   EmailFooter, EmailObject, EmailIsHtml
+              FROM ConfigEmailContent
+             WHERE Company = @company AND Type = @type AND Language = @language";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+        cmd.Parameters.Add("@language", SqlDbType.NVarChar).Value = language;
+        conn.Open();
+        using var rdr = cmd.ExecuteReader();
+        return rdr.Read() ? MapEmailContent(rdr) : null;
+    }
+
+    /// <summary>
+    /// Legge il template con fallback linguistico:
+    ///   1. Cerca la lingua richiesta
+    ///   2. Se non trovata → cerca EN
+    ///   3. Se non trovata → cerca IT
+    ///   4. Se non trovata → null
+    /// Carica tutte le lingue disponibili in una sola query per efficienza.
+    /// </summary>
+    public ConfigEmailContent? GetEmailContentWithFallback(string company, string type, string language)
+    {
+        const string sql = @"
+            SELECT Company, Type, Language, EmailHeader, EmailBody, EmailBodyRowRepeater,
+                   EmailFooter, EmailObject, EmailIsHtml
+              FROM ConfigEmailContent
+             WHERE Company = @company AND Type = @type";
+
+        var available = new List<ConfigEmailContent>();
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+        conn.Open();
+        using var rdr = cmd.ExecuteReader();
+        while (rdr.Read())
+            available.Add(MapEmailContent(rdr));
+
+        if (!available.Any()) return null;
+
+        return available.FirstOrDefault(x => x.Language.Equals(language, StringComparison.OrdinalIgnoreCase))
+            ?? available.FirstOrDefault(x => x.Language.Equals("EN", StringComparison.OrdinalIgnoreCase))
+            ?? available.FirstOrDefault(x => x.Language.Equals("IT", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Salva (INSERT o UPDATE) un record di ConfigEmailContent.
+    /// Chiave logica: Company + Type + Language.
+    /// </summary>
+    public void SaveEmailContent(ConfigEmailContent item)
+    {
+        const string sql = @"
+            MERGE ConfigEmailContent AS target
+            USING (SELECT @company AS Company, @type AS Type, @language AS Language) AS source
+               ON target.Company  = source.Company
+              AND target.Type     = source.Type
+              AND target.Language = source.Language
+            WHEN MATCHED THEN
+                UPDATE SET
+                    EmailHeader          = @header,
+                    EmailBody            = @body,
+                    EmailBodyRowRepeater = @repeater,
+                    EmailFooter          = @footer,
+                    EmailObject          = @object,
+                    EmailIsHtml          = @isHtml
+            WHEN NOT MATCHED THEN
+                INSERT (Company, Type, Language, EmailHeader, EmailBody, EmailBodyRowRepeater,
+                        EmailFooter, EmailObject, EmailIsHtml)
+                VALUES (@company, @type, @language, @header, @body, @repeater,
+                        @footer, @object, @isHtml);";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = item.Company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = item.Type;
+        cmd.Parameters.Add("@language", SqlDbType.NVarChar).Value = item.Language;
+        cmd.Parameters.Add("@header", SqlDbType.NVarChar).Value = item.EmailHeader;
+        cmd.Parameters.Add("@body", SqlDbType.NVarChar).Value = item.EmailBody;
+        cmd.Parameters.Add("@repeater", SqlDbType.NVarChar).Value = item.EmailBodyRowRepeater;
+        cmd.Parameters.Add("@footer", SqlDbType.NVarChar).Value = item.EmailFooter;
+        cmd.Parameters.Add("@object", SqlDbType.NVarChar).Value = item.EmailObject;
+        cmd.Parameters.Add("@isHtml", SqlDbType.NChar).Value = item.EmailIsHtml;
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Elimina un singolo record da ConfigEmailContent (company + type + language).
+    /// </summary>
+    public void DeleteEmailContent(string company, string type, string language)
+    {
+        const string sql = @"
+            DELETE FROM ConfigEmailContent
+             WHERE Company = @company AND Type = @type AND Language = @language";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+        cmd.Parameters.Add("@language", SqlDbType.NVarChar).Value = language;
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Elimina TUTTE le lingue di un Type da ConfigEmailContent e il record da ConfigEmailAddress.
+    /// Usato quando si elimina un tipo di mail completo.
+    /// </summary>
+    public void DeleteEmailType(string company, string type)
+    {
+        const string sqlContent = "DELETE FROM ConfigEmailContent WHERE Company = @company AND Type = @type";
+        const string sqlAddress = "DELETE FROM ConfigEmailAddress WHERE Company = @company AND Type = @type";
+
+        using var conn = new SqlConnection(_connStr);
+        conn.Open();
+
+        using (var cmd = new SqlCommand(sqlContent, conn))
+        {
+            cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+            cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+            cmd.ExecuteNonQuery();
+        }
+        using (var cmd = new SqlCommand(sqlAddress, conn))
+        {
+            cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+            cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Crea un record "guscio" vuoto in ConfigEmailContent e ConfigEmailAddress
+    /// per un Type appena creato su un tenant default (Development, FMGroup).
+    /// Non sovrascrive record già esistenti.
+    /// </summary>
+    public void EnsureEmailTypeExists(string company, string type, string language)
+    {
+        const string sqlContent = @"
+            IF NOT EXISTS (
+                SELECT 1 FROM ConfigEmailContent
+                 WHERE Company = @company AND Type = @type AND Language = @language)
+            INSERT INTO ConfigEmailContent (Company, Type, Language, EmailHeader, EmailBody,
+                        EmailBodyRowRepeater, EmailFooter, EmailObject, EmailIsHtml)
+            VALUES (@company, @type, @language, '', '', '', '', '', 'N')";
+
+        const string sqlAddress = @"
+            IF NOT EXISTS (
+                SELECT 1 FROM ConfigEmailAddress
+                 WHERE Company = @company AND Type = @type)
+            INSERT INTO ConfigEmailAddress (Company, Type, EmailTO, EmailCC, EmailCCN, Description)
+            VALUES (@company, @type, '', '', '', '')";
+
+        using var conn = new SqlConnection(_connStr);
+        conn.Open();
+
+        using (var cmd = new SqlCommand(sqlContent, conn))
+        {
+            cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+            cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+            cmd.Parameters.Add("@language", SqlDbType.NVarChar).Value = language;
+            cmd.ExecuteNonQuery();
+        }
+        using (var cmd = new SqlCommand(sqlAddress, conn))
+        {
+            cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+            cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // CONFIG EMAIL ADDRESS
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Restituisce tutti i record di ConfigEmailAddress per la company indicata.
+    /// </summary>
+    public List<ConfigEmailAddress> GetEmailAddresses(string company)
+    {
+        const string sql = @"
+            SELECT Company, Type, EmailTO, EmailCC, EmailCCN, Description
+              FROM ConfigEmailAddress
+             WHERE Company = @company
+             ORDER BY Type";
+
+        var list = new List<ConfigEmailAddress>();
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        conn.Open();
+        using var rdr = cmd.ExecuteReader();
+        while (rdr.Read())
+            list.Add(MapEmailAddress(rdr));
+
+        return list;
+    }
+
+    /// <summary>
+    /// Restituisce un singolo record di ConfigEmailAddress per company + type.
+    /// Ritorna null se non trovato.
+    /// </summary>
+    public ConfigEmailAddress? GetEmailAddress(string company, string type)
+    {
+        const string sql = @"
+            SELECT Company, Type, EmailTO, EmailCC, EmailCCN, Description
+              FROM ConfigEmailAddress
+             WHERE Company = @company AND Type = @type";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = type;
+        conn.Open();
+        using var rdr = cmd.ExecuteReader();
+        return rdr.Read() ? MapEmailAddress(rdr) : null;
+    }
+
+    /// <summary>
+    /// Salva (INSERT o UPDATE) un record di ConfigEmailAddress.
+    /// Chiave logica: Company + Type.
+    /// </summary>
+    public void SaveEmailAddress(ConfigEmailAddress item)
+    {
+        const string sql = @"
+            MERGE ConfigEmailAddress AS target
+            USING (SELECT @company AS Company, @type AS Type) AS source
+               ON target.Company = source.Company AND target.Type = source.Type
+            WHEN MATCHED THEN
+                UPDATE SET
+                    EmailTO     = @emailTo,
+                    EmailCC     = @emailCc,
+                    EmailCCN    = @emailCcn,
+                    Description = @description
+            WHEN NOT MATCHED THEN
+                INSERT (Company, Type, EmailTO, EmailCC, EmailCCN, Description)
+                VALUES (@company, @type, @emailTo, @emailCc, @emailCcn, @description);";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = item.Company;
+        cmd.Parameters.Add("@type", SqlDbType.NVarChar).Value = item.Type;
+        cmd.Parameters.Add("@emailTo", SqlDbType.NVarChar).Value = item.EmailTO;
+        cmd.Parameters.Add("@emailCc", SqlDbType.NVarChar).Value = item.EmailCC;
+        cmd.Parameters.Add("@emailCcn", SqlDbType.NVarChar).Value = item.EmailCCN;
+        cmd.Parameters.Add("@description", SqlDbType.NVarChar).Value = item.Description;
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    // -------------------------------------------------------------------------
+    // HELPER PRIVATI (MAP) — aggiungere dopo MapJob esistente
+    // -------------------------------------------------------------------------
+
+    private static ConfigEmailContent MapEmailContent(SqlDataReader rdr) => new()
+    {
+        Company = rdr["Company"].ToString()!,
+        Type = rdr["Type"].ToString()!,
+        Language = rdr["Language"] == DBNull.Value ? "IT" : rdr["Language"].ToString()!.Trim(),
+        EmailHeader = rdr["EmailHeader"] == DBNull.Value ? "" : rdr["EmailHeader"].ToString()!,
+        EmailBody = rdr["EmailBody"] == DBNull.Value ? "" : rdr["EmailBody"].ToString()!,
+        EmailBodyRowRepeater = rdr["EmailBodyRowRepeater"] == DBNull.Value ? "" : rdr["EmailBodyRowRepeater"].ToString()!,
+        EmailFooter = rdr["EmailFooter"] == DBNull.Value ? "" : rdr["EmailFooter"].ToString()!,
+        EmailObject = rdr["EmailObject"] == DBNull.Value ? "" : rdr["EmailObject"].ToString()!,
+        EmailIsHtml = rdr["EmailIsHtml"] == DBNull.Value ? "N" : rdr["EmailIsHtml"].ToString()!.Trim(),
+    };
+
+    private static ConfigEmailAddress MapEmailAddress(SqlDataReader rdr) => new()
+    {
+        Company = rdr["Company"].ToString()!,
+        Type = rdr["Type"].ToString()!,
+        EmailTO = rdr["EmailTO"] == DBNull.Value ? "" : rdr["EmailTO"].ToString()!,
+        EmailCC = rdr["EmailCC"] == DBNull.Value ? "" : rdr["EmailCC"].ToString()!,
+        EmailCCN = rdr["EmailCCN"] == DBNull.Value ? "" : rdr["EmailCCN"].ToString()!,
+        Description = rdr["Description"] == DBNull.Value ? "" : rdr["Description"].ToString()!,
+    };
+
+
     // -------------------------------------------------------------------------
     // HELPER PRIVATO
     // -------------------------------------------------------------------------

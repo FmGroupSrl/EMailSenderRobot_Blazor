@@ -4,13 +4,14 @@
 @using EMailSender.Core.Models
 @using EMailSender.Core.Services
 @inject ConfigService Cfg
+@inject TenantService TenantSvc
+@inject IJSRuntime JS
 
 <h4 class="mb-3">Configurazione SMTP</h4>
 
-@* Selezione tenant *@
-<div class="row g-2 mb-4">
+<div class="row g-2 mb-4 align-items-center">
     <div class="col-auto">
-        <select class="form-select" @bind="_selectedCompany" @bind:after="LoadConfig">
+        <select class="form-select" @bind="_selectedCompany" @bind:after="OnCompanyChanged">
             <option value="">— Seleziona tenant —</option>
             @foreach (var c in _companies)
             {
@@ -20,9 +21,15 @@
     </div>
 </div>
 
-@if (!string.IsNullOrWhiteSpace(_selectedCompany))
+@if (_loading)
 {
-
+    <div class="d-flex align-items-center gap-2 mt-3">
+        <div class="spinner-border spinner-border-sm text-secondary"></div>
+        <span class="text-muted">Caricamento...</span>
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(_selectedCompany))
+{
     <p class="@(_cfg.IsDeliveryBlocked ? "text-danger" : "text-success") small">
         Stato spedizioni:
         @(_cfg.IsDeliveryBlocked
@@ -30,7 +37,6 @@
             : "Servizio attivo")
 </p>
 
-    @* --- CARD SMTP --- *@
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-dark text-white">
             Parametri SMTP — @SelectedDisplayName
@@ -39,8 +45,7 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Server SMTP</label>
-                    <input class="form-control" @bind="_cfg.Smtp_Server"
-                           placeholder="smtp.example.com" />
+                    <input class="form-control" @bind="_cfg.Smtp_Server" placeholder="smtp.example.com" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Porta</label>
@@ -48,70 +53,54 @@
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox"
-                               @bind="_cfg.Smtp_Ssl" id="chkSsl" />
+                        <input class="form-check-input" type="checkbox" @bind="_cfg.Smtp_Ssl" id="chkSsl" />
                         <label class="form-check-label" for="chkSsl">SSL</label>
                     </div>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox"
-                               @bind="_cfg.Smtp_StartTls" id="chkTls" />
+                        <input class="form-check-input" type="checkbox" @bind="_cfg.Smtp_StartTls" id="chkTls" />
                         <label class="form-check-label" for="chkTls">StartTLS</label>
                     </div>
                 </div>
-
                 <div class="col-md-2 d-flex align-items-end">
                     <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox"
-                               @bind="_cfg.Smtp_Auth" id="chkAuth" />
+                        <input class="form-check-input" type="checkbox" @bind="_cfg.Smtp_Auth" id="chkAuth" />
                         <label class="form-check-label" for="chkAuth">Autenticazione</label>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Utente SMTP</label>
-                    <input class="form-control" @bind="_cfg.Smtp_User"
-                           disabled="@(!_cfg.Smtp_Auth)" />
+                    <input class="form-control" @bind="_cfg.Smtp_User" disabled="@(!_cfg.Smtp_Auth)" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Password SMTP</label>
-                    <input type="password" class="form-control" @bind="_cfg.Smtp_Password"
-                           disabled="@(!_cfg.Smtp_Auth)" />
+                    <input type="password" class="form-control" @bind="_cfg.Smtp_Password" disabled="@(!_cfg.Smtp_Auth)" />
                 </div>
-
                 <div class="col-md-5">
                     <label class="form-label fw-semibold">Indirizzo mittente</label>
-                    <input class="form-control" @bind="_cfg.Smtp_Sender"
-                           placeholder="noreply@example.com" />
+                    <input class="form-control" @bind="_cfg.Smtp_Sender" placeholder="noreply@example.com" />
                 </div>
                 <div class="col-md-5">
                     <label class="form-label fw-semibold">Alias mittente</label>
-                    <input class="form-control" @bind="_cfg.Smtp_SenderAlias"
-                           placeholder="Nome Azienda" />
+                    <input class="form-control" @bind="_cfg.Smtp_SenderAlias" placeholder="Nome Azienda" />
                 </div>
 
-                @if (!string.IsNullOrEmpty(_saveMessage))
+            @if (!string.IsNullOrEmpty(_saveMessage))
                 {
                     <div class="col-12">
-                        <div class="alert @(_isSaveError ? "alert-danger" : "alert-success") py-1">
-                            @_saveMessage
-                        </div>
+                        <div class="alert @(_isSaveError ? "alert-danger" : "alert-success") py-1">@_saveMessage</div>
                     </div>
                 }
 
                 <div class="col-12 text-end">
-                    <button class="btn btn-outline-secondary me-2" @onclick="LoadConfig">
-                        ↺ Ricarica
-                    </button>
-                    <button class="btn btn-primary" @onclick="SaveConfig">
-                        💾 Salva
-                    </button>
+                    <button class="btn btn-outline-secondary me-2" @onclick="LoadConfig">Ricarica</button>
+                    <button class="btn btn-primary" @onclick="SaveConfig">Salva</button>
                 </div>
             </div>
         </div>
     </div>
 
-    @* --- CARD TEST MAIL --- *@
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-dark text-white">
             Test invio mail — @SelectedDisplayName
@@ -120,25 +109,22 @@
             <div class="row g-3 align-items-end">
                 <div class="col-md-5">
                     <label class="form-label fw-semibold">Destinatario test</label>
-                    <input class="form-control" @bind="_testEmailTo"
-                           placeholder="destinatario@example.com" />
+                    <input class="form-control" @bind="_testEmailTo" placeholder="destinatario@example.com" />
                 </div>
                 <div class="col-auto">
-                    <button class="btn btn-outline-primary" @onclick="SendTestEmail"
-                            disabled="@_testRunning">
+                    <button class="btn btn-outline-primary" @onclick="SendTestEmail" disabled="@_testRunning">
                         @if (_testRunning)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        📨 Invia mail di test
+                        Invia mail di test
                     </button>
                 </div>
             </div>
-
             @if (!string.IsNullOrEmpty(_testResultMessage))
             {
                 <div class="mt-3 alert @(_testIsError ? "alert-danger" : "alert-success")">
-                    <div class="fw-bold mb-1">@(_testIsError ? "❌ KO" : "✅ OK")</div>
+                    <div class="fw-bold mb-1">@(_testIsError ? "KO" : "OK")</div>
                     <div>@_testResultMessage</div>
                     @if (!string.IsNullOrEmpty(_testServerDetails))
                     {
@@ -150,17 +136,19 @@
         </div>
     </div>
 }
+else
+{
+    <p class="text-muted fst-italic">Seleziona un tenant per iniziare.</p>
+}
 
 @code {
     private List<CompanySettings> _companies = [];
     private string _selectedCompany = "";
+    private bool _loading = false;
 
-    // SMTP
     private EmailServerConfig _cfg = new();
     private string _saveMessage = "";
     private bool _isSaveError;
-
-    // Test mail
     private string _testEmailTo = "";
     private bool _testRunning;
     private bool _testIsError;
@@ -171,34 +159,69 @@
         _companies.FirstOrDefault(c => c.Name == _selectedCompany)?.DisplayName ?? _selectedCompany;
 
     protected override void OnInitialized()
-        => _companies = Cfg.GetAllCompanies();
-
-    private void LoadConfig()
     {
+        _companies = Cfg.GetAllCompanies();
+        _selectedCompany = TenantSvc.SelectedCompany;
+        if (!string.IsNullOrWhiteSpace(_selectedCompany))
+            _ = LoadConfig();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && string.IsNullOrWhiteSpace(_selectedCompany))
+        {
+            var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", "selectedCompany");
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                _selectedCompany = saved;
+                TenantSvc.SelectedCompany = saved;
+                _ = LoadConfig();
+                StateHasChanged();
+            }
+        }
+    }
+    private async Task OnCompanyChanged()
+    {
+        TenantSvc.SelectedCompany = _selectedCompany;
+        await JS.InvokeVoidAsync("sessionStorage.setItem", "selectedCompany", _selectedCompany);
+        _ = LoadConfig();
+    }
+
+    private async Task LoadConfig()
+    {
+        _loading = true;
         _saveMessage = "";
         _isSaveError = false;
         _testResultMessage = "";
         _testServerDetails = "";
+        StateHasChanged();
+        await Task.Yield();
 
-        if (string.IsNullOrWhiteSpace(_selectedCompany)) return;
-
-        var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
-        if (companyCfg is null) return;
-
-        var connStr = Cfg.GetConnectionString($"{_selectedCompany}_Main");
-        if (string.IsNullOrWhiteSpace(connStr))
+        if (!string.IsNullOrWhiteSpace(_selectedCompany))
         {
-            _saveMessage = $"Connection string '{_selectedCompany}_Main' non trovata.";
-            _isSaveError = true;
-            return;
+            var companyCfg = _companies.FirstOrDefault(c => c.Name == _selectedCompany);
+            if (companyCfg is not null)
+            {
+                var connStr = Cfg.GetConnectionString($"{_selectedCompany}_Main");
+                if (string.IsNullOrWhiteSpace(connStr))
+                {
+                    _saveMessage = $"Connection string '{_selectedCompany}_Main' non trovata.";
+                    _isSaveError = true;
+                }
+                else
+                {
+                    var repo = new EmailRepository(connStr);
+                    var result = repo.GetServerConfig(_selectedCompany, companyCfg.SqlConfigTableServer);
+                    _cfg = result ?? new EmailServerConfig { Company = _selectedCompany };
+
+                    if (result is null)
+                        _saveMessage = "Nessuna configurazione SMTP trovata — verrà creata al salvataggio.";
+                }
+            }
         }
 
-        var repo = new EmailRepository(connStr);
-        var result = repo.GetServerConfig(_selectedCompany, companyCfg.SqlConfigTableServer);
-        _cfg = result ?? new EmailServerConfig { Company = _selectedCompany };
-
-        if (result is null)
-            _saveMessage = "Nessuna configurazione SMTP trovata — verrà creata al salvataggio.";
+        _loading = false;
+        StateHasChanged();
     }
 
     private void SaveConfig()
@@ -242,7 +265,6 @@
         {
             var svc = new MailSenderService();
             svc.SetServerConfig(_cfg);
-
             svc.TO = [_testEmailTo];
             svc.EmailObject = $"[TEST] EMailSender — {SelectedDisplayName} — {DateTime.Now:dd/MM/yyyy HH:mm}";
             svc.EmailFullBody = $"Mail di test inviata da EMailSender Robot.<br/><br/>" +
@@ -252,12 +274,10 @@
                                 $"Data/ora: {DateTime.Now:dd/MM/yyyy HH:mm:ss}";
 
             bool hasError = svc.SendEmail(isHtml: true, attempts: 1);
-
             _testIsError = hasError;
             _testResultMessage = hasError
                 ? svc.ErrorMessage
                 : $"Mail inviata correttamente a {_testEmailTo}";
-
             _testServerDetails = svc.GetServerDetails();
         });
 

@@ -130,6 +130,27 @@ public class ConfigService
     }
 
     // -------------------------------------------------------------------------
+    // TENANT DEFAULT (sincronizzazione tipi mail)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Restituisce i nomi dei tenant "speciali" configurati in appsettings.json
+    /// sotto la chiave DefaultTenants (es. ["Development", "FMGroup"]).
+    /// Usati per sincronizzare automaticamente i tipi di mail creati/eliminati.
+    /// </summary>
+    public List<string> GetDefaultTenants()
+    {
+        var root = ReadRoot();
+        var arr = root["DefaultTenants"]?.AsArray();
+        if (arr is null) return [];
+
+        return arr
+            .Select(n => n?.GetValue<string>() ?? "")
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList();
+    }
+
+    // -------------------------------------------------------------------------
     // HELPER PRIVATI
     // -------------------------------------------------------------------------
 

@@ -1,0 +1,583 @@
+﻿@page "/emaileditor"
+@rendermode InteractiveServer
+@using EMailSender.Core.Data
+@using EMailSender.Core.Models
+@using EMailSender.Core.Services
+@inject ConfigService Cfg
+@inject TenantService TenantSvc
+@inject IJSRuntime JS
+
+<h4 class="mb-3">Email Editor</h4>
+
+@* ── Barra comandi ── *@
+<div class="row g-2 align-items-center mb-4">
+    <div class="col-auto">
+        <select class="form-select" @bind="_selectedCompany" @bind:after="OnCompanyChanged">
+            <option value="">— Seleziona tenant —</option>
+            @foreach (var c in _companies)
+            {
+                <option value="@c.Name">@c.DisplayName</option>
+            }
+        </select>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_selectedCompany))
+    {
+        <div class="col-auto">
+            <select class="form-select" @bind="_selectedType" @bind:after="OnTypeSelected">
+                <option value="">— Seleziona tipo mail —</option>
+                @foreach (var t in _types)
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-outline-secondary" @onclick="NewType">Nuovo tipo</button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_selectedType) || _isNewType)
+        {
+            <div class="col-auto">
+                <button class="btn btn-primary" @onclick="SaveAll">Salva</button>
+            </div>
+            @if (!_isNewType)
+            {
+                <div class="col-auto">
+                    <button class="btn btn-outline-danger" @onclick="DeleteType">Elimina tipo</button>
+                </div>
+            }
+        }
+    }
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="col-auto">
+            <span class="@(_isError ? "text-danger" : "text-success") small fw-semibold">@_message</span>
+        </div>
+    }
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex align-items-center gap-2 mt-3">
+        <div class="spinner-border spinner-border-sm text-secondary"></div>
+        <span class="text-muted">Caricamento...</span>
+    </div>
+}
+else
+{
+
+    @* ── Editor ── *@
+    @if ((!string.IsNullOrWhiteSpace(_selectedType) || _isNewType) && !string.IsNullOrWhiteSpace(_selectedCompany))
+    {
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <button class="nav-link @(_activeTab == "info" ? "active" : "")"
+                        @onclick='() => _activeTab = "info"'>
+                    Dati generali
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(_activeTab == "content" ? "active" : "")"
+                        @onclick='() => _activeTab = "content"'
+                        disabled="@(_isNewType)">
+                    Contenuto
+                </button>
+            </li>
+        </ul>
+
+        @* ════ TAB: DATI GENERALI ════ *@
+        @if (_activeTab == "info")
+        {
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Type (chiave)</label>
+                    <input class="form-control" @bind="_editType"
+                           disabled="@(!_isNewType)"
+                           placeholder="es. StandardOrder" />
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Descrizione</label>
+                    <input class="form-control" @bind="_editAddress.Description"
+                           placeholder="Descrizione leggibile del tipo di mail" />
+                </div>
+                <div class="col-12"><hr /></div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">A (EmailTO)</label>
+                    <input class="form-control" @bind="_editAddress.EmailTO"
+                           placeholder="Utente Specifico" />
+                    <div class="form-text">Separare piu indirizzi con <code>;</code> — lasciare vuoto per impostare automaticamente "Utente Specifico"</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">CC</label>
+                    <input class="form-control" @bind="_editAddress.EmailCC" placeholder="Facoltativo" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">CCN</label>
+                    <input class="form-control" @bind="_editAddress.EmailCCN" placeholder="Facoltativo" />
+                </div>
+                <div class="col-12"><hr /></div>
+                @if (_editContent is not null)
+                {
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">
+                            Oggetto
+                            @if (!_isNewType)
+                            {
+                                <small class="text-muted fw-normal ms-2">— lingua: @_editContent.Language</small>
+                            }
+                        </label>
+                        <input class="form-control" @bind="_editContent.EmailObject"
+                               placeholder="Oggetto della mail — supporta #CAMPO#" />
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox"
+                                   id="chkHtml"
+                                   checked="@(_editContent.EmailIsHtml == "S")"
+                                   @onchange="OnHtmlFlagChanged" />
+                            <label class="form-check-label" for="chkHtml">HTML</label>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* ════ TAB: CONTENUTO ════ *@
+        @if (_activeTab == "content" && !_isNewType)
+        {
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <ul class="nav nav-tabs mb-0 flex-grow-1">
+                    @foreach (var content in _contents.Where(c => c.Type == _selectedType))
+                    {
+                        <li class="nav-item">
+                            <button class="nav-link @(_editContent?.Language == content.Language ? "active" : "")"
+                                    @onclick="() => SelectLanguage(content)">
+                                @content.Language
+                            </button>
+                        </li>
+                    }
+                    @if (_isNewLanguage)
+                    {
+                        <li class="nav-item">
+                            <button class="nav-link active">Nuova lingua</button>
+                        </li>
+                    }
+                </ul>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="NewLanguage">+ Lingua</button>
+                @if (_editContent is not null && !_isNewLanguage)
+                {
+                    <button class="btn btn-sm btn-outline-danger" @onclick="DeleteLanguage">
+                        Elimina @_editContent.Language
+                    </button>
+                }
+            </div>
+
+            @if (_isNewLanguage && _editContent is not null)
+            {
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Lingua</label>
+                        <select class="form-select" @bind="_editContent.Language">
+                            <option value="IT">IT — Italiano</option>
+                            <option value="EN">EN — English</option>
+                            <option value="DE">DE — Deutsch</option>
+                            <option value="FR">FR — Francais</option>
+                            <option value="ES">ES — Espanol</option>
+                        </select>
+                    </div>
+                </div>
+            }
+
+            @if (_editContent is not null)
+            {
+                <div class="row g-0">
+
+                    @* Colonna editor *@
+                    <div class="col-md-6 pe-3">
+                        <ul class="nav nav-tabs mb-2">
+                            <li class="nav-item">
+                                <button class="nav-link @(_contentTab == "header" ? "active" : "")"
+                                        @onclick='() => _contentTab = "header"'>
+                                    Testata
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link @(_contentTab == "body" ? "active" : "")"
+                                        @onclick='() => _contentTab = "body"'>
+                                    Corpo
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link @(_contentTab == "repeater" ? "active" : "")"
+                                        @onclick='() => _contentTab = "repeater"'>
+                                    Repeater
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link @(_contentTab == "footer" ? "active" : "")"
+                                        @onclick='() => _contentTab = "footer"'>
+                                    Footer
+                                </button>
+                            </li>
+                        </ul>
+
+                        @if (_contentTab == "header")
+                        {
+                            <textarea class="form-control font-monospace" style="font-size:0.8rem" rows="20"
+                                      @bind="_editContent.EmailHeader"
+                                      @bind:after="RefreshPreview"
+                                      placeholder="HTML testata — CSS inline"></textarea>
+                        }
+                        @if (_contentTab == "body")
+                        {
+                            <textarea class="form-control font-monospace" style="font-size:0.8rem" rows="20"
+                                      @bind="_editContent.EmailBody"
+                                      @bind:after="RefreshPreview"
+                                      placeholder="HTML corpo — usare #ELEMENTLIST# per il repeater"></textarea>
+                        }
+                        @if (_contentTab == "repeater")
+                        {
+                            <textarea class="form-control font-monospace" style="font-size:0.8rem" rows="20"
+                                      @bind="_editContent.EmailBodyRowRepeater"
+                                      @bind:after="RefreshPreview"
+                                      placeholder="Template singola riga"></textarea>
+                        }
+                        @if (_contentTab == "footer")
+                        {
+                            <textarea class="form-control font-monospace" style="font-size:0.8rem" rows="20"
+                                      @bind="_editContent.EmailFooter"
+                                      @bind:after="RefreshPreview"
+                                      placeholder="HTML footer — CSS inline"></textarea>
+                        }
+                    </div>
+
+                    @* Colonna preview *@
+                    <div class="col-md-6">
+                        <div class="mb-2"><small class="text-muted">Anteprima corpo completo</small></div>
+                        <iframe srcdoc="@_previewHtml"
+                                style="width:100%; height:calc(20 * 1.5rem + 2.5rem); min-height:500px; border:1px solid #dee2e6; border-radius:.375rem; background:#fff;">
+                        </iframe>
+                    </div>
+
+                </div>
+            }
+            else
+            {
+                <p class="text-muted fst-italic">Seleziona una lingua o aggiungine una nuova.</p>
+            }
+        }
+
+    }
+
+}
+@code {
+    private List<CompanySettings> _companies = [];
+    private string _selectedCompany = "";
+
+    private List<string> _types = [];
+    private List<ConfigEmailContent> _contents = [];
+    private List<ConfigEmailAddress> _addresses = [];
+
+    private string _selectedType = "";
+    private bool _isNewType = false;
+    private bool _isNewLanguage = false;
+    private string _editType = "";
+    private string _activeTab = "info";
+    private string _contentTab = "header";
+
+    private ConfigEmailContent? _editContent;
+    private ConfigEmailAddress _editAddress = new();
+
+    private string _previewHtml = "";
+    private string _message = "";
+    private bool _isError = false;
+    private bool _loading = false;
+
+    protected override void OnInitialized()
+    {
+        _companies = Cfg.GetAllCompanies();
+        _selectedCompany = TenantSvc.SelectedCompany;
+        if (!string.IsNullOrWhiteSpace(_selectedCompany))
+            _ = LoadData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && string.IsNullOrWhiteSpace(_selectedCompany))
+        {
+            var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", "selectedCompany");
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                _selectedCompany = saved;
+                TenantSvc.SelectedCompany = saved;
+                _ = LoadData();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task OnCompanyChanged()
+    {
+        TenantSvc.SelectedCompany = _selectedCompany;
+        await JS.InvokeVoidAsync("sessionStorage.setItem", "selectedCompany", _selectedCompany);
+        _ = LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        StateHasChanged();
+        await Task.Yield();
+
+        _selectedType = "";
+        _editContent = null;
+        _editAddress = new();
+        _isNewType = false;
+        _isNewLanguage = false;
+        _message = "";
+        _activeTab = "info";
+        _contentTab = "header";
+        _types = [];
+        _contents = [];
+        _addresses = [];
+
+        if (!string.IsNullOrWhiteSpace(_selectedCompany))
+        {
+            var connStr = Cfg.GetConnectionString($"{_selectedCompany}_Main");
+            if (!string.IsNullOrWhiteSpace(connStr))
+            {
+                var repo = new EmailRepository(connStr);
+                _contents = repo.GetEmailContents(_selectedCompany);
+                _addresses = repo.GetEmailAddresses(_selectedCompany);
+
+                _types = _contents.Select(c => c.Type)
+                    .Union(_addresses.Select(a => a.Type))
+                    .OrderBy(t => t)
+                    .ToList();
+            }
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void OnTypeSelected()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedType)) return;
+        SelectType(_selectedType);
+    }
+
+    private void SelectType(string type)
+    {
+        _isNewType = false;
+        _isNewLanguage = false;
+        _selectedType = type;
+        _editType = type;
+        _message = "";
+        _activeTab = "info";
+        _contentTab = "header";
+
+        _editAddress = _addresses.FirstOrDefault(a => a.Type == type)
+                       ?? new ConfigEmailAddress { Company = _selectedCompany, Type = type };
+
+        var first = _contents.FirstOrDefault(c => c.Type == type);
+        if (first is not null)
+            SelectLanguage(first);
+        else
+            _editContent = null;
+
+        RefreshPreview();
+    }
+
+    private void SelectLanguage(ConfigEmailContent content)
+    {
+        _isNewLanguage = false;
+        _editContent = new ConfigEmailContent
+        {
+            Company = content.Company,
+            Type = content.Type,
+            Language = content.Language,
+            EmailHeader = content.EmailHeader,
+            EmailBody = content.EmailBody,
+            EmailBodyRowRepeater = content.EmailBodyRowRepeater,
+            EmailFooter = content.EmailFooter,
+            EmailObject = content.EmailObject,
+            EmailIsHtml = content.EmailIsHtml,
+        };
+        _message = "";
+        RefreshPreview();
+    }
+
+    private void NewType()
+    {
+        _isNewType = true;
+        _isNewLanguage = false;
+        _selectedType = "";
+        _editType = "";
+        _activeTab = "info";
+        _contentTab = "header";
+        _editAddress = new ConfigEmailAddress { Company = _selectedCompany };
+        _editContent = new ConfigEmailContent { Company = _selectedCompany, Language = "IT" };
+        _message = "";
+        RefreshPreview();
+    }
+
+    private void NewLanguage()
+    {
+        _isNewLanguage = true;
+        _activeTab = "content";
+        _contentTab = "header";
+
+        var base_ = _contents.FirstOrDefault(c => c.Type == _selectedType && c.Language == "IT")
+                 ?? _contents.FirstOrDefault(c => c.Type == _selectedType && c.Language == "EN")
+                 ?? _contents.FirstOrDefault(c => c.Type == _selectedType);
+
+        _editContent = new ConfigEmailContent
+        {
+            Company = _selectedCompany,
+            Type = _selectedType,
+            Language = "EN",
+            EmailHeader = base_?.EmailHeader ?? "",
+            EmailBody = base_?.EmailBody ?? "",
+            EmailBodyRowRepeater = base_?.EmailBodyRowRepeater ?? "",
+            EmailFooter = base_?.EmailFooter ?? "",
+            EmailObject = base_?.EmailObject ?? "",
+            EmailIsHtml = base_?.EmailIsHtml ?? "N",
+        };
+
+        _message = "";
+        RefreshPreview();
+    }
+
+    private void OnHtmlFlagChanged(ChangeEventArgs e)
+    {
+        if (_editContent is null) return;
+        _editContent.EmailIsHtml = (bool)e.Value! ? "S" : "N";
+    }
+
+    private async Task SaveAll()
+    {
+        _message = "";
+
+        if (_isNewType && string.IsNullOrWhiteSpace(_editType))
+        {
+            SetError("Il campo Type e obbligatorio.");
+            return;
+        }
+
+        var type = _isNewType ? _editType : _selectedType;
+
+        try
+        {
+            var connStr = Cfg.GetConnectionString($"{_selectedCompany}_Main");
+            if (string.IsNullOrWhiteSpace(connStr)) { SetError("Connection string non trovata."); return; }
+
+            var repo = new EmailRepository(connStr);
+
+            _editAddress.Company = _selectedCompany;
+            _editAddress.Type = type;
+            if (string.IsNullOrWhiteSpace(_editAddress.EmailTO))
+                _editAddress.EmailTO = "Utente Specifico";
+            repo.SaveEmailAddress(_editAddress);
+
+            if (_editContent is not null)
+            {
+                _editContent.Company = _selectedCompany;
+                _editContent.Type = type;
+                repo.SaveEmailContent(_editContent);
+
+                if (_isNewType || _isNewLanguage)
+                    SyncDefaultTenants(type, _editContent.Language);
+            }
+
+            _isNewType = false;
+            _isNewLanguage = false;
+
+            var savedType = type;
+            await LoadData();
+            _selectedType = savedType;
+            SelectType(savedType);
+
+            SetOk("Salvato.");
+        }
+        catch (Exception ex) { SetError(ex.Message); }
+    }
+
+    private async Task DeleteLanguage()
+    {
+        if (_editContent is null) return;
+        try
+        {
+            var connStr = Cfg.GetConnectionString($"{_selectedCompany}_Main");
+            if (string.IsNullOrWhiteSpace(connStr)) { SetError("Connection string non trovata."); return; }
+
+            var repo = new EmailRepository(connStr);
+            repo.DeleteEmailContent(_selectedCompany, _selectedType, _editContent.Language);
+
+            await LoadData();
+            _selectedType = _types.Contains(_selectedType) ? _selectedType : "";
+            if (!string.IsNullOrWhiteSpace(_selectedType))
+                SelectType(_selectedType);
+            else
+                _editContent = null;
+
+            SetOk("Lingua eliminata.");
+        }
+        catch (Exception ex) { SetError(ex.Message); }
+    }
+
+    private async Task DeleteType()
+    {
+        try
+        {
+            var connStr = Cfg.GetConnectionString($"{_selectedCompany}_Main");
+            if (string.IsNullOrWhiteSpace(connStr)) { SetError("Connection string non trovata."); return; }
+
+            var repo = new EmailRepository(connStr);
+            repo.DeleteEmailType(_selectedCompany, _selectedType);
+
+            await LoadData();
+            SetOk("Tipo eliminato.");
+        }
+        catch (Exception ex) { SetError(ex.Message); }
+    }
+
+    private void SyncDefaultTenants(string type, string language)
+    {
+        var defaults = Cfg.GetDefaultTenants();
+        foreach (var tenantName in defaults)
+        {
+            if (tenantName.Equals(_selectedCompany, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var connStr = Cfg.GetConnectionString($"{tenantName}_Main");
+            if (string.IsNullOrWhiteSpace(connStr)) continue;
+
+            try
+            {
+                var repo = new EmailRepository(connStr);
+                repo.EnsureEmailTypeExists(tenantName, type, language);
+            }
+            catch { }
+        }
+    }
+
+    private void RefreshPreview()
+    {
+        if (_editContent is null) { _previewHtml = ""; return; }
+
+        var repeaterExample = string.IsNullOrWhiteSpace(_editContent.EmailBodyRowRepeater)
+            ? ""
+            : _editContent.EmailBodyRowRepeater
+                .Replace("#PRODOTTO#", "Prodotto di esempio")
+                .Replace("#QTY#", "1")
+                .Replace("#PREZZO#", "€ 0,00");
+
+        var body = _editContent.EmailBody.Replace("#ELEMENTLIST#", repeaterExample);
+        _previewHtml = _editContent.EmailHeader + body + _editContent.EmailFooter;
+    }
+
+    private void SetOk(string msg) { _message = msg; _isError = false; }
+    private void SetError(string msg) { _message = msg; _isError = true; }
+}

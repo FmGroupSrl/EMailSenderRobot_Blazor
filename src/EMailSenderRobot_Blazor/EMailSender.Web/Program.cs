@@ -16,6 +16,7 @@ var appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json")
 
 builder.Services.AddSingleton(new ConfigService(appSettingsPath));
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+builder.Services.AddScoped<TenantService>();
 
 var app = builder.Build();
 

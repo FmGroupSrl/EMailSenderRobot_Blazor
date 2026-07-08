@@ -118,6 +118,10 @@ CREATE TABLE ConfigEmailAddress (
 
 > `EmailBodyRowRepeater` è un template HTML di una singola riga (es. `<tr>`) con placeholder `#CAMPO#`. Il codice applicativo lo espande in loop e sostituisce il placeholder `#ELEMENTLIST#` nel corpo mail.
 
+> Elenco completo di tutti i placeholder disponibili (per tipo di mail e progetto consumer): vedi `PLACEHOLDERS.md` in questa stessa cartella. **Copia duplicata e sincronizzata manualmente** con `FMGroup.Mail/PLACEHOLDERS.md` — aggiornare entrambe le copie ad ogni modifica.
+
+> **Limite noto dell'anteprima nell'Email Editor:** sostituisce solo 4 placeholder generici hardcoded (`#PRODOTTO#`, `#QTY#`, `#PREZZO#`, `#ELEMENTLIST#`) — i placeholder di dominio specifico (es. `#TOTALEORDINE#`, `#USERNAME#`, `#IMG_...#`) compaiono grezzi in anteprima. Dettagli e possibile evoluzione futura: `PLACEHOLDERS_PREVIEW_GAP.md`.
+
 ### 2.2 Database di log (es. `Ewp_TenantName_LoggerDb`)
 
 ```sql

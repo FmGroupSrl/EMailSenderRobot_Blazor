@@ -107,6 +107,174 @@ Definiti in `BuildOrderEmailBodyAsync` (`EasyWebParts_Blazor/Services/OrderManag
 | `#NOTECOLUMN_HIDDEN#` | Vedi sopra | *(vedi sopra)* |
 | `#OLDPARTNOCOLUMN_HIDDEN#` | Vedi sopra | *(vedi sopra)* |
 
+## Placeholder email pratica di garanzia (EasyWebParts_Blazor)
+
+> ⚠️ **PREVISTI, NON ANCORA IMPLEMENTATI.** La mail della pratica di garanzia è la Fase 5 di
+> TRACKPRJ-159: oggi l'invio cambia solo lo stato della pratica e non manda niente a nessuno.
+> Questo elenco è stato scritto **prima** del codice, il 18/08/2026, di proposito: i campi della
+> pratica sono nati in fasi diverse e distanti fra loro, e senza un elenco preso in carico ora il
+> rischio concreto è che alla Fase 5 metà di essi non arrivi in mail — senza che nessuno se ne
+> accorga, perché un placeholder mai scritto in un template non lascia traccia.
+>
+> Chi implementa la Fase 5 usi questi nomi, e **tolga questo avviso** quando il codice esiste.
+
+### ⚠️ Tutti i placeholder delle garanzie hanno il prefisso `WAR_`
+
+Decisione dell'utente (18/08/2026): *«quelli delle garanzie sono specifici delle garanzie, anche se
+sembrano uguali ad altri, gestiamoli separati»*.
+
+Vale **anche** per i concetti che negli ordini esistono già con lo stesso significato — il cliente,
+l'indirizzo di spedizione, il vettore. Riusare `#COMPANYDESCR#` in due mail diverse sembra
+un'economia, ma lega insieme due template che devono poter evolvere separatamente: il giorno che
+l'ordine cambia il significato di un campo, la mail di garanzia se lo ritrova cambiato sotto senza
+che nessuno l'abbia deciso. Il prefisso rende anche evidente, a chi apre un template, a quale mail
+appartiene ciò che sta leggendo.
+
+Unica eccezione: `#PORTALURL#`, che è di sistema e non di dominio — vale per tutte le mail del
+portale.
+
+### Corpo mail (`bodyTemplate`)
+
+**Identità della pratica**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_NUMBER#` | Numero pratica (anno/progressivo) | `2026/0007` |
+| `#WAR_TYPE#` | Descrizione tipo pratica | `Garanzia macchina` |
+| `#WAR_STATUS#` | Descrizione stato | `Inviata` |
+| `#WAR_CREATIONDATE#` | Data creazione (`dd/MM/yyyy`) | `18/08/2026` |
+| `#WAR_SENTDATE#` | Data invio (`dd/MM/yyyy`) | `18/08/2026` |
+| `#WAR_USEREMAIL#` | Email di chi ha compilato la pratica | `officina@rossiricambi.it` |
+| `#WAR_DEALERCODE#` | Codice del CA che apre la pratica | `CL00123` |
+| `#WAR_DEALERNAME#` | Ragione sociale del CA | `Rossi Ricambi Srl` |
+
+**Sezione 1 — macchina e circostanze**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_SERIALNO#` | Matricola della macchina | `SN00234455` |
+| `#WAR_MODEL#` | Descrizione modello (snapshot) | `Spazzatrice 5000 EVO` |
+| `#WAR_WORKSHOPREPORT#` | Numero report interno d'officina | `RAP-2026-118` |
+| `#WAR_DETECTMOMENT#` | Momento del rilievo, già tradotto | `Dopo la consegna` |
+| `#WAR_DETECTDATE#` | Data del rilievo (`dd/MM/yyyy`) | `03/08/2026` |
+| `#WAR_REPAIRDATE#` | Data della riparazione (`dd/MM/yyyy`) — ⚠️ diversa dalla precedente: si rileva il 3 e si ripara il 12 | `12/08/2026` |
+
+**Sezione 3 — guasto e classificazione**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_DEFECT#` | Difetto riscontrato | `Perdita di olio dal gruppo di sollevamento` |
+| `#WAR_CAUSE#` | Possibile causa ipotizzata | `Guarnizione del cilindro deteriorata` |
+| `#WAR_CORRECTION#` | Correzione applicata — è ciò che il costruttore legge per decidere se riconoscere la garanzia | `Sostituita guarnizione e rabboccato l'impianto` |
+| `#WAR_REQUESTS#` | Richieste e suggerimenti al costruttore | `Si chiede accredito del ricambio` |
+| `#WAR_COMPLAINTCODE#` / `#WAR_COMPLAINTDESC#` | Tipo di reclamo: codice e descrizione tradotta | `LEAK` / `Perdita di liquidi` |
+| `#WAR_LOCATIONCODE#` / `#WAR_LOCATIONDESC#` | Posizione del guasto | `HYDRAU` / `Impianto idraulico` |
+| `#WAR_FAILURECODE#` / `#WAR_FAILUREDESC#` | Natura del guasto | `BREAK` / `Rottura` |
+
+⚠️ Codice **e** descrizione, entrambi: chi lavora la pratica ragiona per codice, chi la legge ha
+bisogno del testo. Le descrizioni sono quelle censite dal tenant, quindi vanno risolte nella lingua
+del **destinatario** e non in quella di chi ha compilato.
+
+**Sezione 4 — contatto di riferimento**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_CONTACTLASTNAME#` / `#WAR_CONTACTFIRSTNAME#` | Cognome e nome | `Bianchi` / `Luca` |
+| `#WAR_CONTACTPHONE#` | Telefono | `059 123456` |
+| `#WAR_CONTACTEMAIL#` | Email | `l.bianchi@rossiricambi.it` |
+
+⚠️ Il fax **non c'è**: è stato eliminato dal modulo il 18/08/2026.
+
+**Sezione 5 — cliente finale (proprietario della macchina)**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_CUSTNAME#` | Ragione sociale | `Comune di Modena` |
+| `#WAR_CUSTVAT#` / `#WAR_CUSTFISCAL#` | Partita IVA e codice fiscale | `IT01234567890` / `01234567890` |
+| `#WAR_CUSTADDRESS#` / `#WAR_CUSTZIP#` / `#WAR_CUSTCITY#` / `#WAR_CUSTPROVINCE#` / `#WAR_CUSTCOUNTRY#` | Indirizzo completo | `Via Roma 1` / `41100` / `Modena` / `MO` / `Italia` |
+| `#WAR_CUSTEMAIL#` / `#WAR_CUSTPHONE#` | Contatti | `mezzi@comune.modena.it` / `059 999888` |
+
+⚠️ L'intera sezione può essere **spenta dal tenant** (TRACKPRJ-170): il template deve reggere il
+caso in cui questi placeholder siano tutti vuoti, senza lasciare a video etichette orfane.
+
+**Sezione 7 — spedizione dei pezzi**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_DESTCODE#` | Codice destinazione | `DEST001` |
+| `#WAR_DESTNAME#` / `#WAR_DESTADDRESS#` / `#WAR_DESTZIP#` / `#WAR_DESTCITY#` / `#WAR_DESTPROVINCE#` / `#WAR_DESTCOUNTRY#` | Indirizzo di rientro dei pezzi | `Rossi Ricambi - Magazzino` / `Via Industria 45` / `41122` / `Modena` / `MO` / `Italia` |
+| `#WAR_DESTEMAIL#` / `#WAR_DESTPHONE#` | Contatti della destinazione | `magazzino@rossiricambi.it` / `059 111222` |
+| `#WAR_CARRIER#` / `#WAR_CARRIERACCOUNT#` | Vettore e conto del cliente presso il vettore | `DHL Express` / `DHL-998877` |
+| `#WAR_SERVICELEVEL#` | Livello di servizio | `Standard 24/48h` |
+| `#WAR_DELIVERYMETHOD#` | Metodo di consegna | `Reso franco destino` |
+
+**Elenchi e totali**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_METERLIST#` | Letture dei contatori, espanse dal repeater | *(HTML composto — vedi repeater)* |
+| `#WAR_PARTLIST#` | Pezzi reclamati, espansi dal repeater | *(idem)* |
+| `#WAR_EXPENSELIST#` | Spese officina, espanse dal repeater | *(idem)* |
+| `#WAR_ATTACHMENTLIST#` | Elenco degli allegati | *(idem)* |
+| `#WAR_EXPENSETOTAL#` | Totale spese officina, già formattato con la valuta | `€ 245,50` |
+| `#WAR_ATTACHMENTCOUNT#` | Quanti file sono allegati | `4` |
+
+⚠️ **Quattro elenchi distinti, non un `#ELEMENTLIST#` solo** come negli ordini: una pratica di
+garanzia ha quattro tabelle diverse per natura, e comprimerle in un unico segnaposto costringerebbe
+il codice a comporre l'intero blocco HTML, togliendo a chi scrive il template ogni controllo su
+dove metterle e con che aspetto.
+
+### Oggetto mail (`subjectTemplate`)
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_NUMBER#` | Numero pratica | `2026/0007` |
+| `#WAR_TYPE#` | Descrizione tipo pratica | `Garanzia macchina` |
+| `#WAR_SERIALNO#` | Matricola | `SN00234455` |
+| `#WAR_DEALERNAME#` | Ragione sociale del CA | `Rossi Ricambi Srl` |
+
+### Righe degli elenchi (`EmailBodyRowRepeater`)
+
+Un repeater per ciascuno dei quattro elenchi. I nomi sono distinti anche fra loro: se due elenchi
+condividessero un placeholder, chi scrive il template non potrebbe dare formati diversi alle due
+tabelle.
+
+**Contatori (`#WAR_METERLIST#`)**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_METERNAME#` | Descrizione del contatore, come censita dal tenant | `Ore di funzionamento` |
+| `#WAR_METERVALUE#` | Lettura, coi decimali della sua unità | `1250` |
+| `#WAR_METERUNIT#` | Simbolo dell'unità | `h` |
+| `#WAR_METERABSENT#` | Testo se il contatore è dichiarato assente | `Contatore assente` |
+
+**Pezzi reclamati (`#WAR_PARTLIST#`)**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_PARTNO#` | Codice ricambio | `RC-4521-B` |
+| `#WAR_PARTDESCRIPTION#` | Descrizione | `Guarnizione testata cilindro` |
+| `#WAR_PARTQUANTITY#` | Quantità reclamata | `2` |
+| `#WAR_PARTORIGIN#` | Provenienza della riga (listino, catalogo, manuale) | `Catalogo` |
+
+**Spese officina (`#WAR_EXPENSELIST#`)**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_EXPENSEDESCRIPTION#` | Descrizione della voce (snapshot) | `Ore uomo` |
+| `#WAR_EXPENSEQUANTITY#` | Quantità, coi decimali dell'unità | `2,25` |
+| `#WAR_EXPENSEUNIT#` | Unità | `h` |
+| `#WAR_EXPENSEUNITPRICE#` | Valore unitario applicato | `45,00` |
+| `#WAR_EXPENSEROWTOTAL#` | Totale riga | `101,25` |
+
+**Allegati (`#WAR_ATTACHMENTLIST#`)**
+
+| Placeholder | Significato | Esempio |
+|---|---|---|
+| `#WAR_ATTACHMENTNAME#` | Nome originale del file | `foto-guasto-01.jpg` |
+| `#WAR_ATTACHMENTCATEGORY#` | Famiglia: documento oppure media | `Foto e video` |
+| `#WAR_ATTACHMENTSIZE#` | Dimensione leggibile | `3,2 MB` |
+
 ## Placeholder generico del motore repeater (`EMailSenderRobot_Blazor`)
 
 Il campo `EmailBodyRowRepeater` in `ConfigEmailContent` è un template di singola riga con placeholder

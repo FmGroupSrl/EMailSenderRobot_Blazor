@@ -38,22 +38,10 @@ public class FileLogger
     public void Error(string operation, string message) => Write("ERRORE", operation, message);
     public void Warn(string operation, string message) => Write("WARNING", operation, message);
 
-    /// <summary>
-    /// Elimina i file di log più vecchi di <paramref name="retentionDays"/> giorni.
-    /// </summary>
-    public void Cleanup(int retentionDays)
-    {
-        try
-        {
-            if (!Directory.Exists(_logDir)) return;
-
-            var cutoff = DateTime.Now.AddDays(-retentionDays);
-            foreach (var file in Directory.GetFiles(_logDir, "EMailSender_*.log"))
-            {
-                if (File.GetLastWriteTime(file) < cutoff)
-                    File.Delete(file);
-            }
-        }
-        catch { }
-    }
+    // NOTA: qui esisteva un metodo Cleanup(int retentionDays) che cancellava i
+    // file di log più vecchi di N giorni, invocato al termine di ogni
+    // esecuzione del ConsoleJob. È stato rimosso: la pulizia è ora
+    // centralizzata in Invoke-EMailSenderLogCleanup.ps1, un task giornaliero
+    // che ripulisce file su disco e tabella log per tutti i tenant con
+    // un'unica soglia. Vedi Invoke-EMailSenderLogCleanup.ps1.
 }

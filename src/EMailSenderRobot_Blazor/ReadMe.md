@@ -537,7 +537,6 @@ Fatti da conoscere, tutti verificati sul codice:
       "DisplayName": "FM Group",
       "BatchSize": 10,
       "MaxRetryCount": 2,
-      "LogRetentionDays": 30,
       "LogDirectory": "C:\\EMailSenderData\\FMG\\Log",
       "BackupCompany": "",
       "BackupEmailType": "",
@@ -573,7 +572,7 @@ Stesse `ConnectionStrings` e stesso `Companies` della Web UI, **più** la sezion
 | `DisplayName` | Web | Nome visualizzato nella UI |
 | `BatchSize` | Job | Mail elaborate per esecuzione. Sovrascrivibile con `--batch` |
 | `MaxRetryCount` | *nessuno* | **Ignorato dal job**, che usa `EmailJob:MaxRetryCount` (vedi §16.3) |
-| `LogRetentionDays` | Job | Giorni di conservazione dei file `.log` su disco |
+| ~~`LogRetentionDays`~~ | *rimosso* | La conservazione non è più per tenant: la decide il task giornaliero di pulizia (60 giorni, file e database) |
 | `LogDirectory` | Job | Cartella dei file di log. Se vuoto: `<cartella exe>\Logs` |
 | `SqlConfigTableServer` | Web + Job | Nome della tabella SMTP (default `ConfigEmailServer`) |
 | `SemaphoreFilePath` | *nessuno* | **Non letto da nessun componente** (vedi §16.2) |
@@ -940,7 +939,6 @@ Tutti da eseguire **come amministratore**. Sono idempotenti: rieseguirli è sicu
 | `ConsoleJobSetupJob.ps1` | Task di un tenant | Crea/aggiorna il task come `SYSTEM`, ripetizione illimitata. `-Remove` per rimuoverlo |
 | `Test-EMailSenderInstall.ps1` | Verifica e diagnosi | Solo lettura: 9 famiglie di controlli, exit code 1 su errori |
 | `Deploy.ps1` | Aggiornamento di un'installazione esistente | Stop servizio, copia file (mai gli appsettings), aggiorna script e guida, start |
-| `FirstInstall.cmd` | *Superato* | Creava solo cartelle e permessi. Sostituito da `Install-EMailSender.ps1` |
 | `StartServices.ps1` / `StopServices.ps1` / `RestartServices.ps1` | Gestione quotidiana | Avvio / arresto / riavvio di `EMailSenderWeb` |
 
 Ogni script documenta i propri parametri:

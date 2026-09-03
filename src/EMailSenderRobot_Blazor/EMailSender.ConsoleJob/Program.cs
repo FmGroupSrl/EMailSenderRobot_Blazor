@@ -97,7 +97,12 @@ try
     foreach (var job in jobs)
         ProcessJob(job);
 
-    fileLog.Cleanup(companyCfg?.LogRetentionDays ?? 30);
+    // La cancellazione dei log vecchi non avviene più qui: se ne occupa
+    // Invoke-EMailSenderLogCleanup.ps1, un task giornaliero che ripulisce da
+    // un unico punto sia i file su disco sia la tabella log, per tutti i
+    // tenant. Farlo anche qui significava due soglie diverse in due posti,
+    // con la più aggressiva che vinceva silenziosamente, e comunque non
+    // copriva né la tabella sul database né i tenant che smettono di girare.
 }
 catch (Exception ex)
 {

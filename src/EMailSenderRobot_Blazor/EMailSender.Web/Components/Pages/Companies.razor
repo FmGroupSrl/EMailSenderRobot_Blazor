@@ -18,7 +18,6 @@
             <th>Display</th>
             <th>Batch</th>
             <th>MaxRetry</th>
-            <th>Log (gg)</th>
             <th>Stato</th>
             <th></th>
         </tr>
@@ -31,7 +30,6 @@
                 <td>@c.DisplayName</td>
                 <td>@c.BatchSize</td>
                 <td>@c.MaxRetryCount</td>
-                <td>@c.LogRetentionDays</td>
                 <td>
                     <button class="btn btn-sm @(_blockedMap.TryGetValue(c.Name, out var bl) && bl ? "btn-danger" : "btn-success")"
                             @onclick="() => ToggleTenantBlocked(c)">
@@ -76,10 +74,8 @@
                 <label class="form-label fw-semibold">Max retry</label>
                 <input type="number" class="form-control" @bind="_edit.MaxRetryCount" />
             </div>
-            <div class="col-md-2">
-                <label class="form-label fw-semibold">Giorni log</label>
-                <input type="number" class="form-control" @bind="_edit.LogRetentionDays" />
-            </div>
+            @* Il campo "Giorni log" è stato rimosso: la conservazione dei log
+               non è più per tenant, la decide il task giornaliero di pulizia. *@
             <div class="col-md-5">
                 <label class="form-label fw-semibold">Directory log file</label>
                 <input class="form-control" @bind="_edit.LogDirectory"

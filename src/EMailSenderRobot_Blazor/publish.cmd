@@ -122,7 +122,6 @@ echo === Copia script e documentazione in publish ===
 
 for %%F in (
     Deploy.ps1
-    FirstInstall.cmd
     EMailSenderCommon.ps1
     Setup-EMailSender.ps1
     Invoke-EMailSenderLogCleanup.ps1

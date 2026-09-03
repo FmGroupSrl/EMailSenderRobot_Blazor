@@ -3,8 +3,8 @@
     Prima installazione completa di EMailSenderRobot su un server.
 
 .DESCRIPTION
-    Sostituisce e completa FirstInstall.cmd, che si limitava a creare le due
-    cartelle e i permessi lasciando all'operatore la copia dei file, la
+    Sostituisce il vecchio FirstInstall.cmd (rimosso), che si limitava a creare
+    le due cartelle e i permessi, lasciando all'operatore la copia dei file, la
     creazione dei file di configurazione e la registrazione del servizio.
 
     Sequenza eseguita:

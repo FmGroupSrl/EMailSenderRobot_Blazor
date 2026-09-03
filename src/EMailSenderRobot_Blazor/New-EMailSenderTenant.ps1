@@ -9,28 +9,34 @@
     di configurazione. Lo script e' idempotente: si puo' rieseguire per
     aggiornare un tenant esistente.
 
-    DUE LAYOUT DI DATABASE SUPPORTATI
+    IL DATABASE DEL ROBOT E' SEMPRE UN DATABASE A SE'
+    Non va mai messo dentro il database applicativo del tenant: separarlo
+    rende i template copiabili fra ambienti, il backup indipendente dai dati
+    del cliente e il robot installabile ovunque.
 
-    1) UN DB PER TENANT (default, convenzione EasyWebParts)
-         -MainDbName  Ewp_<Tenant>_MainDb
-         -LogDbName   Ewp_<Tenant>_LoggerDb
-       Le 4 tabelle di configurazione stanno sul Main, la tabella "log" sul
-       Log. L'uscita di un cliente si chiude con DROP DATABASE.
+    DUE LAYOUT SUPPORTATI
+
+    1) UN DB PER TENANT (default)
+         <Prefisso><Tenant>_Mail      4 tabelle di configurazione e coda
+         <Prefisso><Tenant>_MailLog   tabella log
+       Es. EWP_EasyLift_Mail. Il suffisso e' "_Mail" e non "_Main" proprio
+       perche' "_Main" e' il database applicativo, che qui non c'entra.
+       L'uscita di un cliente si chiude con DROP DATABASE.
 
     2) UN DB UNICO DEL ROBOT (parametro -SharedDatabase)
-         -MainDbName = -LogDbName = es. FMG_EmailSenderRobot
-       Tutte e 5 le tabelle nello stesso database. Nulla nel codice lo
-       vieta: "X_Main" e "X_Log" sono due chiavi di configurazione
-       indipendenti e possono puntare allo stesso DB. In questo layout
-       l'uscita di un cliente e' un DELETE ... WHERE Company = '<Tenant>'
+         <Prefisso>EMailSenderRobot   tutte e 5 le tabelle, tutti i tenant
+       Il nome non contiene il tenant, di proposito: i clienti aggiunti dopo
+       finirebbero in un database che porta il nome del primo. Nulla nel
+       codice vieta questo layout: "X_Main" e "X_Log" sono due chiavi di
+       configurazione indipendenti e possono puntare allo stesso database.
+       L'uscita di un cliente e' un DELETE ... WHERE Company = '<Tenant>'
        sulle 5 tabelle (piu' la cartella dei log su disco e gli allegati,
        che sono percorsi su filesystem, non blob).
 
-    NOTA SUL PREFISSO DEL NOME DATABASE
-    Il prefisso "Ewp_" e' solo una convenzione di naming di EasyWebParts:
-    non e' cablato in nessun punto del codice, che usa unicamente le chiavi
-    di configurazione "<Tenant>_Main" e "<Tenant>_Log". Con -DbPrefix ""
-    (default) i database si chiamano <Tenant>_MainDb / <Tenant>_LoggerDb.
+    NOTA SUL PREFISSO
+    Identifica il progetto/prodotto proprietario ("EWP_", "FMG_") e viene
+    chiesto se non passato. Non e' cablato in nessun punto del codice, che usa
+    unicamente le chiavi di configurazione "<Tenant>_Main" e "<Tenant>_Log".
 
     NOTA SUL NUMERO DI TASK
     Il ciclo di spedizione non filtra per company: una singola esecuzione
@@ -93,7 +99,10 @@ param(
     # Parametri applicativi del tenant.
     [int] $BatchSize        = 10,
     [int] $MaxRetryCount    = 2,
-    [int] $LogRetentionDays = 30,
+    # LogRetentionDays rimosso: la conservazione dei log non e' piu' un
+    # parametro per tenant, la decide il task giornaliero di pulizia creato da
+    # Invoke-EMailSenderLogCleanup.ps1 (60 giorni, file e database insieme).
+
 
     # Parametri SMTP: se -SmtpServer e' valorizzato viene creata/aggiornata
     # la riga in ConfigEmailServer. Altrimenti si configura dalla Web UI.
@@ -890,8 +899,7 @@ function Update-AppSettings {
         [Parameter(Mandatory = $true)][string] $ConnLog,
         [Parameter(Mandatory = $true)][string] $LogDir,
         [Parameter(Mandatory = $true)][int]    $Batch,
-        [Parameter(Mandatory = $true)][int]    $MaxRetry,
-        [Parameter(Mandatory = $true)][int]    $Retention
+        [Parameter(Mandatory = $true)][int]    $MaxRetry
     )
 
     # La cartella di destinazione puo' non esistere se questo script viene
@@ -964,7 +972,6 @@ function Update-AppSettings {
         DisplayName          = $Display
         BatchSize            = $Batch
         MaxRetryCount        = $MaxRetry
-        LogRetentionDays     = $Retention
         LogDirectory         = $LogDir
         BackupCompany        = ""
         BackupEmailType      = ""
@@ -1008,7 +1015,7 @@ $jobSettings = Join-Path $InstallRoot "ConsoleJob\appsettings.json"
 foreach ($target in @($webSettings, $jobSettings)) {
     Update-AppSettings -Path $target -Tenant $TenantName -Display $DisplayName `
         -ConnMain $connStrMain -ConnLog $connStrLog -LogDir $LogDirectory `
-        -Batch $BatchSize -MaxRetry $MaxRetryCount -Retention $LogRetentionDays
+        -Batch $BatchSize -MaxRetry $MaxRetryCount
     Write-Host "    Aggiornato: $target" -ForegroundColor Green
 }
 

@@ -256,15 +256,29 @@ else {
 Write-Host ""
 Write-Host "6. Task Scheduler" -ForegroundColor Yellow
 
-$found = @()
-foreach ($folder in $TaskFolders) {
-    $tasks = Get-ScheduledTask -TaskPath "$($folder.TrimEnd('\'))\*" -ErrorAction SilentlyContinue |
-             Where-Object { $_.TaskName -like "EMailSenderJob*" }
-    if ($null -ne $tasks) { $found += $tasks }
+# Si cercano i task per NOME in tutto il Task Scheduler, non per cartella: la
+# cartella dipende dal prefisso scelto all'installazione (es. \FMG_EmailRobot)
+# e cercarla per nome fisso darebbe falsi allarmi.
+$allTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
+              Where-Object { $_.TaskName -like "EMailSender*" })
+
+$found   = @($allTasks | Where-Object { $_.TaskName -like "EMailSenderJob*" })
+$cleanup = @($allTasks | Where-Object { $_.TaskName -like "*LogCleanup*" })
+
+# Task di pulizia: la sua assenza non blocca le spedizioni, ma da quando la
+# pulizia non avviene piu' dentro il ConsoleJob e' l'unico che cancella i log
+# vecchi, su disco e sul database.
+if ($cleanup.Count -eq 0) {
+    Write-Check WARN "task di pulizia log assente: i log non vengono piu' cancellati da nessuno (crearlo con Invoke-EMailSenderLogCleanup.ps1 -RegisterTask)"
+}
+else {
+    foreach ($c in $cleanup) {
+        Write-Check OK "$($c.TaskPath)$($c.TaskName) [$($c.State)]"
+    }
 }
 
 if ($found.Count -eq 0) {
-    Write-Check ERR "nessun task 'EMailSenderJob*' trovato in: $($TaskFolders -join ', ')"
+    Write-Check ERR "nessun task 'EMailSenderJob*' trovato nel Task Scheduler"
 }
 else {
     foreach ($t in $found) {

@@ -12,6 +12,19 @@ $SERVICE  = "EMailSenderWeb"
 
 Write-Host ""
 Write-Host "=== Stop $SERVICE ===" -ForegroundColor Yellow
+
+# Se il servizio non esiste ancora (macchina nuova) si esce subito: Deploy.ps1
+# aggiorna un'installazione esistente, la prima installazione la fa
+# Install-EMailSender.ps1. Senza questo controllo lo script proseguiva e
+# falliva piu' avanti con un errore poco chiaro su Get-Service.
+$svc = Get-Service -Name $SERVICE -ErrorAction SilentlyContinue
+if ($null -eq $svc) {
+    Write-Host "    Servizio '$SERVICE' non registrato su questa macchina." -ForegroundColor Red
+    Write-Host "    Per la PRIMA installazione usare: .\Install-EMailSender.ps1" -ForegroundColor Yellow
+    Write-Host ""
+    return
+}
+
 Stop-Service -Name $SERVICE -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 Write-Host "    Stato: $((Get-Service -Name $SERVICE).Status)" -ForegroundColor Cyan
@@ -46,9 +59,28 @@ Write-Host "    Fatto." -ForegroundColor Cyan
 
 Write-Host ""
 Write-Host "=== Copia script PowerShell in C:\EMailSender ===" -ForegroundColor Yellow
-Copy-Item -Path "$PSScriptRoot\RestartServices.ps1" -Destination "$DST_BASE\RestartServices.ps1" -Force
-Copy-Item -Path "$PSScriptRoot\StartServices.ps1"   -Destination "$DST_BASE\StartServices.ps1"   -Force
-Copy-Item -Path "$PSScriptRoot\StopServices.ps1"    -Destination "$DST_BASE\StopServices.ps1"    -Force
+
+# Tutti gli script di gestione vengono riallineati ad ogni deploy, cosi' la
+# cartella di installazione contiene sempre la versione corrente. I file
+# assenti nella publish vengono semplicemente saltati.
+$SCRIPTS = @(
+    "RestartServices.ps1",
+    "StartServices.ps1",
+    "StopServices.ps1",
+    "ConsoleJobSetupJob.ps1",
+    "New-EMailSenderTenant.ps1",
+    "Register-EMailSenderService.ps1",
+    "Install-EMailSender.ps1",
+    "Test-EMailSenderInstall.ps1"
+)
+
+foreach ($s in $SCRIPTS) {
+    $src = Join-Path $PSScriptRoot $s
+    if (Test-Path $src) {
+        Copy-Item -Path $src -Destination (Join-Path $DST_BASE $s) -Force
+        Write-Host "    $s" -ForegroundColor Cyan
+    }
+}
 
 Write-Host "    Fatto." -ForegroundColor Cyan
 

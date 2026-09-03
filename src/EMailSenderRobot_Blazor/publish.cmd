@@ -65,8 +65,23 @@ echo.
 echo === Copia Deploy.ps1 in publish ===
 copy /Y "%~dp0Deploy.ps1" "%~dp0..\..\publish\Deploy.ps1"
 
-echo === Copia FirstInstall.ps1 in publish ===
+echo === Copia FirstInstall.cmd in publish ===
 copy /Y "%~dp0FirstInstall.cmd" "%~dp0..\..\publish\FirstInstall.cmd"
+
+echo === Copia Install-EMailSender.ps1 in publish ===
+copy /Y "%~dp0Install-EMailSender.ps1" "%~dp0..\..\publish\Install-EMailSender.ps1"
+
+echo === Copia Register-EMailSenderService.ps1 in publish ===
+copy /Y "%~dp0Register-EMailSenderService.ps1" "%~dp0..\..\publish\Register-EMailSenderService.ps1"
+
+echo === Copia New-EMailSenderTenant.ps1 in publish ===
+copy /Y "%~dp0New-EMailSenderTenant.ps1" "%~dp0..\..\publish\New-EMailSenderTenant.ps1"
+
+echo === Copia ConsoleJobSetupJob.ps1 in publish ===
+copy /Y "%~dp0ConsoleJobSetupJob.ps1" "%~dp0..\..\publish\ConsoleJobSetupJob.ps1"
+
+echo === Copia Test-EMailSenderInstall.ps1 in publish ===
+copy /Y "%~dp0Test-EMailSenderInstall.ps1" "%~dp0..\..\publish\Test-EMailSenderInstall.ps1"
 
 echo === Copia RestartServices.ps1 in publish ===
 copy /Y "%~dp0RestartServices.ps1" "%~dp0..\..\publish\RestartServices.ps1"
@@ -80,16 +95,24 @@ copy /Y "%~dp0StopServices.ps1" "%~dp0..\..\publish\StopServices.ps1"
 echo === Copia ReadMe.md in publish ===
 copy /Y "%~dp0ReadMe.md" "%~dp0..\..\publish\ReadMe.md"
 
+echo === Copia INTEGRATION.md in publish ===
+copy /Y "%~dp0INTEGRATION.md" "%~dp0..\..\publish\INTEGRATION.md"
+
+echo === Copia PLACEHOLDERS.md in publish ===
+copy /Y "%~dp0PLACEHOLDERS.md" "%~dp0..\..\publish\PLACEHOLDERS.md"
+
 
 echo.
 echo =========================================
 echo  Versione pubblicata: %VERSION%
 echo  Tag Git:             %VERSION%
 echo.
-echo  Ora crea uno zip con:
-echo    install.cmd  (dalla root del repo)
-echo    publish\Web\
-echo    publish\ConsoleJob\
+echo  Per il deploy: zippare l'INTERA cartella publish\
+echo  (contiene Web\, ConsoleJob\, gli script .ps1 e ReadMe.md)
+echo.
+echo  Sul server:
+echo    prima installazione  -^> Install-EMailSender.ps1
+echo    aggiornamento        -^> Deploy.ps1
 echo =========================================
 echo.
 pause

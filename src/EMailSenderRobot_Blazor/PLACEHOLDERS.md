@@ -23,6 +23,22 @@ possibile fonte dati per un futuro miglioramento dell'anteprima dell'Email Edito
 solo 4 placeholder generici e mostra grezzi tutti gli altri — vedi
 `EMailSenderRobot_Blazor/src/EMailSenderRobot_Blazor/PLACEHOLDERS_PREVIEW_GAP.md`.
 
+## Chi sostituisce i placeholder (leggere prima di usare questo elenco)
+
+Questo file dice **quali** placeholder esistono. Non dice **chi** li sostituisce, che è la domanda
+decisiva per chi sta scrivendo un'applicazione consumer. In sintesi:
+
+- **Il robot `EMailSenderRobot` non sostituisce nulla**: spedisce il corpo mail esattamente come lo
+  trova in coda. Un placeholder non sostituito arriva testualmente al destinatario.
+- **`FMGroup.Mail` sostituisce solo i placeholder immagine** `#IMG_..._#`, e unicamente se il
+  consumer chiama `ReplaceImagePlaceholdersAsync`.
+- **Tutto il resto — inclusi `#ELEMENTLIST#` e ogni placeholder testuale — è a carico
+  dell'applicazione consumer**, con le proprie `.Replace()`.
+
+Guida completa per chi integra un'applicazione (contratto della coda, DI, esempio di codice,
+trappole note, checklist):
+`EMailSenderRobot_Blazor/src/EMailSenderRobot_Blazor/INTEGRATION.md`.
+
 ## Famiglie di placeholder
 
 ### 1. Placeholder testuali generici — formato `#NOME#`

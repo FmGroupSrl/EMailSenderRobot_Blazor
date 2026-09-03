@@ -316,12 +316,18 @@ C:\EMailSender\
 
 Due modelli, entrambi supportati **senza modifiche al codice**. La scelta va fatta prima di creare i database.
 
-### 5.1 Un database per tenant (convenzione EasyWebParts)
+> **Il database del robot è sempre un database a sé**, distinto da quello applicativo del tenant. Nelle installazioni storiche le 5 tabelle vivono dentro il database principale dell'applicazione (`Ewp_DemoCompany_MainDb`): non farlo più. Separarlo rende i template copiabili fra ambienti, il backup indipendente dai dati del cliente e il robot installabile ovunque senza dipendere da un'applicazione.
+
+### 5.1 Un database per tenant
 
 ```
-Ewp_<Tenant>_MainDb      → 4 tabelle di configurazione e coda
-Ewp_<Tenant>_LoggerDb    → tabella log
+<Prefisso><Tenant>_Mail      → 4 tabelle di configurazione e coda
+<Prefisso><Tenant>_MailLog   → tabella log
 ```
+
+Esempio: `EWP_EasyLift_Mail` e `EWP_EasyLift_MailLog`.
+
+Il **prefisso** dice a quale progetto/prodotto appartengono i database (`EWP_` per EasyWebParts, `FMG_` per i progetti interni) e viene chiesto dallo script. Il suffisso è `_Mail`, non `_Main`: `_Main` è il database **applicativo** del tenant, che con il robot non c'entra.
 
 - Isolamento totale tra clienti: la dismissione è un `DROP DATABASE`, il restore di un cliente non tocca gli altri.
 - Serve **un task per tenant**, perché ognuno punta a un database diverso.
@@ -330,8 +336,10 @@ Ewp_<Tenant>_LoggerDb    → tabella log
 ### 5.2 Un database unico per il robot
 
 ```
-FMG_EmailSenderRobot     → tutte e 5 le tabelle
+<Prefisso>EMailSenderRobot     → tutte e 5 le tabelle, tutti i tenant
 ```
+
+Esempio: `FMG_EMailSenderRobot`. Qui il nome **non contiene il tenant**, di proposito: i clienti aggiunti in seguito finirebbero in un database che porta il nome del primo.
 
 Le chiavi `<Tenant>_Main` e `<Tenant>_Log` sono due voci di configurazione indipendenti: **nulla vieta di farle puntare allo stesso database**. Le 5 tabelle non collidono e sono già multi-tenant per schema (colonna `Company`/`company` nella chiave logica; in `ConfigEmailServer` è addirittura la chiave primaria).
 
@@ -678,11 +686,12 @@ Con lo script (fa tutto, è idempotente):
 ```powershell
 # Layout a DB unico: nessun task nuovo, quello esistente serve anche questo tenant
 .\New-EMailSenderTenant.ps1 -TenantName "Acme" -DisplayName "Acme Spa" `
-    -SharedDatabase -MainDbName "FMG_EmailSenderRobot"
+    -SharedDatabase -MainDbName "FMG_EMailSenderRobot"
 
-# Layout a DB per tenant: serve anche il task
-.\New-EMailSenderTenant.ps1 -TenantName "Acme" -DisplayName "Acme Spa" `
-    -DbPrefix "Ewp_" -CreateTask
+# Layout a DB per tenant: serve anche il task.
+# Senza -DbPrefix e senza -MainDbName lo script chiede il prefisso e mostra i
+# nomi che userebbe (EWP_Acme_Mail / EWP_Acme_MailLog) chiedendo conferma.
+.\New-EMailSenderTenant.ps1 -TenantName "Acme" -DisplayName "Acme Spa" -CreateTask
 ```
 
 Cosa fa, nell'ordine: crea i database mancanti → crea le 5 tabelle e gli indici → concede login/utente/ruoli a `NT AUTHORITY\SYSTEM` → inserisce la riga in `ConfigEmailServer` se manca → crea la cartella di log con i permessi di scrittura → aggiorna **entrambi** gli `appsettings.json` (con backup datato) → crea il task se richiesto.
@@ -707,8 +716,8 @@ Poi, sui dati:
 **Layout a DB per tenant**
 
 ```sql
-DROP DATABASE [Ewp_Acme_MainDb];
-DROP DATABASE [Ewp_Acme_LoggerDb];
+DROP DATABASE [EWP_Acme_Mail];
+DROP DATABASE [EWP_Acme_MailLog];
 ```
 
 **Layout a DB unico**

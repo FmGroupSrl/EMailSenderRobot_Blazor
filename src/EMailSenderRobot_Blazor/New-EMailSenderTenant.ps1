@@ -71,8 +71,10 @@ param(
     # sbagliato e accorgersene molto piu' tardi.
     [string] $SqlInstance = "",
 
-    # Prefisso dei nomi database. "" = nessun prefisso (default).
-    # Su EasyWebParts la convenzione e' "Ewp_".
+    # Prefisso dei nomi database: identifica il progetto/prodotto proprietario
+    # ("EWP_" per EasyWebParts, "FMG_" per i progetti interni). Se omesso viene
+    # chiesto, perche' un database senza prefisso non si capisce a chi
+    # appartenga quando l'istanza ne ospita decine.
     [string] $DbPrefix = "",
 
     # Nomi database espliciti: se omessi vengono derivati da prefisso+tenant.
@@ -128,6 +130,46 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 # System.Data contiene SqlClient: si usa quello invece di sqlcmd.exe o del
 # modulo SqlServer, che su un server appena installato spesso non ci sono.
 Add-Type -AssemblyName System.Data
+
+# ---------------------------------------------------------------------------
+# INPUT INTERATTIVO
+# ---------------------------------------------------------------------------
+
+<#
+.SYNOPSIS
+    Chiede un valore all'operatore, tollerando gli host non interattivi.
+.DESCRIPTION
+    Read-Host solleva un'eccezione quando PowerShell gira in modalita' non
+    interattiva (job pianificati, esecuzioni automatizzate, alcune console
+    integrate). Senza questa protezione lo script si interromperebbe a meta'
+    anche quando tutti i parametri necessari sono stati passati da riga di
+    comando e la domanda era solo una conferma.
+
+    In quel caso: se la risposta ha un default lo si usa senza chiedere, se e'
+    obbligatoria si fallisce con un messaggio che dice quale parametro passare.
+#>
+function Read-Answer {
+    param(
+        [Parameter(Mandatory = $true)][string] $Prompt,
+        [string] $Default = "",
+        [switch] $Mandatory,
+        [string] $ParameterHint = ""
+    )
+
+    try {
+        $answer = Read-Host $Prompt
+        if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
+        return $answer.Trim()
+    }
+    catch {
+        if ($Mandatory) {
+            throw "Host non interattivo: impossibile chiedere '$Prompt'. Passare il valore da riga di comando$(if ($ParameterHint) { " con $ParameterHint" })."
+        }
+
+        Write-Host "    (host non interattivo: uso il valore predefinito '$Default')" -ForegroundColor DarkGray
+        return $Default
+    }
+}
 
 # ---------------------------------------------------------------------------
 # ISTANZA SQL SERVER
@@ -230,9 +272,7 @@ if ([string]::IsNullOrWhiteSpace($SqlInstance)) {
         Write-Host "    Se SQL Server e' su un'altra macchina indicare NOMESERVER o NOMESERVER\ISTANZA." -ForegroundColor Cyan
         Write-Host ""
 
-        $answer = Read-Host "    Istanza da usare [.\SQLEXPRESS]"
-        if ([string]::IsNullOrWhiteSpace($answer)) { $SqlInstance = ".\SQLEXPRESS" }
-        else                                       { $SqlInstance = $answer.Trim() }
+        $SqlInstance = Read-Answer -Prompt "    Istanza da usare [.\SQLEXPRESS]" -Default ".\SQLEXPRESS"
     }
     elseif ($found.Count -eq 1) {
 
@@ -244,9 +284,7 @@ if ([string]::IsNullOrWhiteSpace($SqlInstance)) {
         Write-Host ("      {0,-24} [{1}]" -f $only, (Get-SqlServiceState -Instance $only))
         Write-Host ""
 
-        $answer = Read-Host "    Istanza da usare [$only]"
-        if ([string]::IsNullOrWhiteSpace($answer)) { $SqlInstance = $only }
-        else                                       { $SqlInstance = $answer.Trim() }
+        $SqlInstance = Read-Answer -Prompt "    Istanza da usare [$only]" -Default $only
     }
     else {
 
@@ -262,35 +300,37 @@ if ([string]::IsNullOrWhiteSpace($SqlInstance)) {
             if ($label -eq ".") { $extra = "  (istanza predefinita)" }
             Write-Host ("      [{0}] {1,-24} [{2}]{3}" -f ($n + 1), $label, (Get-SqlServiceState -Instance $label), $extra)
         }
+
+        # Ultima voce del menu: un'istanza che il rilevamento locale non vede,
+        # tipicamente su un altro server. Resta una scelta numerata come le
+        # altre, il nome viene chiesto dopo.
+        $otherIndex = $found.Count + 1
+        Write-Host ("      [{0}] Altra istanza (server remoto o non in elenco)" -f $otherIndex)
+
         Write-Host ""
         Write-Host "    Nessuna scelta predefinita: indicare quale usare." -ForegroundColor Yellow
-        Write-Host "    Si puo' rispondere con il numero, oppure con un nome non in elenco" -ForegroundColor DarkGray
-        Write-Host "    (es. un server remoto: NOMESERVER\ISTANZA)." -ForegroundColor DarkGray
 
         while ($true) {
             Write-Host ""
-            $answer = (Read-Host "    Istanza da usare (1-$($found.Count) oppure nome)").Trim()
+            $answer = Read-Answer -Prompt "    Istanza da usare (1-$otherIndex)" -Mandatory -ParameterHint "-SqlInstance"
 
-            if ([string]::IsNullOrWhiteSpace($answer)) {
-                Write-Host "    Risposta obbligatoria." -ForegroundColor Red
-                continue
-            }
-
-            # Risposta numerica: deve cadere dentro l'elenco.
             $index = 0
             if ([int]::TryParse($answer, [ref] $index)) {
+
                 if ($index -ge 1 -and $index -le $found.Count) {
                     $SqlInstance = $found[$index - 1]
                     break
                 }
-                Write-Host "    Numero fuori elenco: indicare un valore tra 1 e $($found.Count)." -ForegroundColor Red
-                continue
+
+                if ($index -eq $otherIndex) {
+                    $SqlInstance = Read-Answer -Prompt "    Nome dell'istanza (es. NOMESERVER\ISTANZA)" -Mandatory -ParameterHint "-SqlInstance"
+                    if (-not [string]::IsNullOrWhiteSpace($SqlInstance)) { break }
+                    Write-Host "    Risposta obbligatoria." -ForegroundColor Red
+                    continue
+                }
             }
 
-            # Altrimenti si accetta il nome cosi' com'e' scritto: puo' essere
-            # un'istanza remota, che il rilevamento locale non vede.
-            $SqlInstance = $answer
-            break
+            Write-Host "    Risposta non valida: indicare un valore da 1 a $otherIndex." -ForegroundColor Red
         }
     }
 
@@ -317,7 +357,7 @@ if (-not $SkipDatabase) {
                 throw "Istanza SQL '$SqlInstance' non raggiungibile. Verificare nome, servizio avviato, e per istanze remote che TCP/IP e SQL Browser siano attivi."
             }
 
-            $retry = Read-Host "    Riprovare con quale istanza? (invio per annullare)"
+            $retry = Read-Answer -Prompt "    Riprovare con quale istanza? (invio per annullare)" -Mandatory -ParameterHint "-SqlInstance"
             if ([string]::IsNullOrWhiteSpace($retry)) {
                 throw "Operazione annullata: nessuna istanza SQL valida."
             }
@@ -331,16 +371,112 @@ if (-not $SkipDatabase) {
 # ---------------------------------------------------------------------------
 if ([string]::IsNullOrWhiteSpace($DisplayName)) { $DisplayName = $TenantName }
 
+# ---------------------------------------------------------------------------
+# PREFISSO DEI NOMI DATABASE
+# Chiesto se non passato: serve a dire di quale progetto/prodotto sono i
+# database, sulle istanze che ne ospitano molti.
+# ---------------------------------------------------------------------------
+if (-not $PSBoundParameters.ContainsKey('DbPrefix')) {
+
+    Write-Host ""
+    Write-Host "=== Prefisso dei nomi database ===" -ForegroundColor Yellow
+    Write-Host "    Identifica il progetto/prodotto proprietario dei database:" -ForegroundColor Cyan
+    Write-Host "      [1] EWP_    prodotto EasyWebParts"
+    Write-Host "      [2] FMG_    progetti interni FMGroup"
+    Write-Host "      [3] Altro prefisso"
+    Write-Host "      [4] Nessun prefisso"
+    Write-Host ""
+
+    # Si insiste finche' la risposta non e' una delle quattro previste: un
+    # prefisso sbagliato si paga rinominando database gia' popolati.
+    while ($true) {
+
+        # In assenza di interazione (esecuzione automatizzata) si ripiega su
+        # "nessun prefisso", che e' l'unica scelta neutra.
+        $answer = Read-Answer -Prompt "    Prefisso (1-4)" -Default "4"
+
+        if ($answer -eq "1") { $DbPrefix = "EWP_"; break }
+        if ($answer -eq "2") { $DbPrefix = "FMG_"; break }
+        if ($answer -eq "4") { $DbPrefix = "";     break }
+
+        if ($answer -eq "3") {
+            $DbPrefix = Read-Answer -Prompt "    Prefisso da usare, underscore finale incluso (es. ABC_)" -Default ""
+            break
+        }
+
+        Write-Host "    Risposta non valida: indicare un valore da 1 a 4." -ForegroundColor Red
+    }
+}
+
+# ---------------------------------------------------------------------------
+# NOMI DEI DATABASE
+#
+# Il suffisso e' "_Mail" / "_MailLog", non "_Main" / "_LoggerDb": le tabelle
+# del robot stanno in un database PROPRIO, distinto dal database applicativo
+# del tenant. Chiamarlo "_Main" farebbe pensare al database principale
+# dell'applicazione, che e' esattamente quello da cui si vuole separarlo.
+# ---------------------------------------------------------------------------
+$namesWereDerived = $false
+
 if ([string]::IsNullOrWhiteSpace($MainDbName)) {
-    $MainDbName = "{0}{1}_MainDb" -f $DbPrefix, $TenantName
+
+    if ($SharedDatabase) {
+        # Database unico del robot, condiviso da tutti i tenant: il nome NON
+        # contiene il tenant, che sarebbe fuorviante — i clienti aggiunti dopo
+        # finirebbero in un database che porta il nome del primo.
+        $MainDbName = "{0}EMailSenderRobot" -f $DbPrefix
+    }
+    else {
+        # Un database per tenant: il tenant nel nome ci vuole, e il ruolo e'
+        # "Mail", non "Main", perche' questo database appartiene al robot e
+        # non all'applicazione del tenant.
+        $MainDbName = "{0}{1}_Mail" -f $DbPrefix, $TenantName
+    }
+
+    $namesWereDerived = $true
 }
 
 if ($SharedDatabase) {
-    # Layout 2: log e configurazione nello stesso database.
+    # Layout a database unico: le 5 tabelle, log compreso, stanno insieme.
     $LogDbName = $MainDbName
 }
 elseif ([string]::IsNullOrWhiteSpace($LogDbName)) {
-    $LogDbName = "{0}{1}_LoggerDb" -f $DbPrefix, $TenantName
+    $LogDbName = "{0}{1}_MailLog" -f $DbPrefix, $TenantName
+    $namesWereDerived = $true
+}
+
+# ---------------------------------------------------------------------------
+# Conferma dei nomi ricavati automaticamente.
+# Rinominare un database dopo averlo popolato costa molto piu' che rispondere
+# a una domanda adesso: si mostra cosa verrebbe creato e si chiede conferma.
+# ---------------------------------------------------------------------------
+if ($namesWereDerived) {
+
+    Write-Host ""
+    Write-Host "=== Nomi dei database ===" -ForegroundColor Yellow
+    if ($SharedDatabase) {
+        Write-Host "    Database unico (tutte e 5 le tabelle): $MainDbName" -ForegroundColor Cyan
+    }
+    else {
+        Write-Host "    Configurazione e coda : $MainDbName" -ForegroundColor Cyan
+        Write-Host "    Log                   : $LogDbName" -ForegroundColor Cyan
+    }
+
+    Write-Host ""
+    $confirm = Read-Answer -Prompt "    Confermi questi nomi? [S/n]" -Default "S"
+
+    if ($confirm -match '^[nN]') {
+        $newMain = Read-Answer -Prompt "    Nome del database principale [$MainDbName]" -Default $MainDbName
+        if (-not [string]::IsNullOrWhiteSpace($newMain)) { $MainDbName = $newMain }
+
+        if ($SharedDatabase) {
+            $LogDbName = $MainDbName
+        }
+        else {
+            $newLog = Read-Answer -Prompt "    Nome del database di log [$LogDbName]" -Default $LogDbName
+            if (-not [string]::IsNullOrWhiteSpace($newLog)) { $LogDbName = $newLog }
+        }
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($LogDirectory)) {
@@ -650,6 +786,26 @@ Write-Host "=== 6. File di configurazione ===" -ForegroundColor Yellow
 
 <#
 .SYNOPSIS
+    Verifica se un oggetto JSON possiede una proprieta' con il nome indicato.
+.DESCRIPTION
+    Non si usa $obj.PSObject.Properties.Name.Contains(...): su un oggetto
+    ancora privo di proprieta' (il caso di un appsettings.json creato da zero)
+    la collezione Name vale $null e la chiamata a Contains fallisce con
+    "Impossibile chiamare un metodo su un'espressione con valore null".
+    L'indicizzazione di Properties, invece, restituisce $null senza errori.
+#>
+function Test-JsonProperty {
+    param(
+        [Parameter(Mandatory = $true)] $Object,
+        [Parameter(Mandatory = $true)][string] $Name
+    )
+
+    if ($null -eq $Object) { return $false }
+    return ($null -ne $Object.PSObject.Properties[$Name])
+}
+
+<#
+.SYNOPSIS
     Aggiunge o aggiorna un tenant e le sue connection string in un appsettings.json.
 .DESCRIPTION
     Preserva tutte le chiavi non gestite dallo script (Logging, Urls,
@@ -669,6 +825,16 @@ function Update-AppSettings {
         [Parameter(Mandatory = $true)][int]    $Retention
     )
 
+    # La cartella di destinazione puo' non esistere se questo script viene
+    # eseguito prima di Install-EMailSender.ps1. Si crea e si avvisa: la
+    # configurazione scritta ora resta valida, perche' l'installazione non
+    # sovrascrive mai un appsettings.json esistente.
+    $parent = Split-Path -Parent $Path
+    if (-not (Test-Path $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        Write-Warning "Cartella '$parent' creata. Sembra che Install-EMailSender.ps1 non sia ancora stato eseguito: ricordarsi di farlo, altrimenti mancano gli eseguibili e il servizio."
+    }
+
     if (Test-Path $Path) {
         # Backup datato prima di ogni modifica: la configurazione e' l'unico
         # stato non ricostruibile dell'installazione.
@@ -679,16 +845,41 @@ function Update-AppSettings {
     }
     else {
         Write-Host "      File assente, viene creato: $Path" -ForegroundColor Cyan
-        $json = [PSCustomObject]@{}
+
+        # Si parte da una configurazione minima gia' completa delle chiavi che
+        # gli altri componenti si aspettano, invece che da un oggetto vuoto:
+        # "Logging" per entrambi, e "EmailJob" per il ConsoleJob, che e' la
+        # sezione da cui legge davvero MaxRetryCount.
+        $json = [PSCustomObject]@{
+            Logging = [PSCustomObject]@{
+                LogLevel = [PSCustomObject]@{
+                    "Default"              = "Information"
+                    "Microsoft.AspNetCore" = "Warning"
+                }
+            }
+        }
+
+        if ($Path -like "*ConsoleJob*") {
+            $json | Add-Member -MemberType NoteProperty -Name "EmailJob" -Value ([PSCustomObject]@{
+                MaxRetryCount  = $MaxRetry
+                DefaultCompany = ""
+            })
+        }
+        else {
+            # Binding di Kestrel: senza questa chiave la Web UI ascolta solo
+            # su loopback. Si scrive il default conservativo.
+            $json | Add-Member -MemberType NoteProperty -Name "Urls" -Value "http://localhost:5000"
+            $json | Add-Member -MemberType NoteProperty -Name "IsBlocked" -Value $false
+        }
     }
 
     # --- ConnectionStrings ---------------------------------------------
-    if (-not $json.PSObject.Properties.Name.Contains("ConnectionStrings")) {
+    if (-not (Test-JsonProperty -Object $json -Name "ConnectionStrings")) {
         $json | Add-Member -MemberType NoteProperty -Name "ConnectionStrings" -Value ([PSCustomObject]@{})
     }
     $cs = $json.ConnectionStrings
     foreach ($pair in @(@{ K = "$($Tenant)_Main"; V = $ConnMain }, @{ K = "$($Tenant)_Log"; V = $ConnLog })) {
-        if ($cs.PSObject.Properties.Name.Contains($pair.K)) {
+        if (Test-JsonProperty -Object $cs -Name $pair.K) {
             $cs.($pair.K) = $pair.V
         }
         else {
@@ -712,7 +903,7 @@ function Update-AppSettings {
         SemaphoreFilePath    = ""
     }
 
-    if (-not $json.PSObject.Properties.Name.Contains("Companies")) {
+    if (-not (Test-JsonProperty -Object $json -Name "Companies")) {
         $json | Add-Member -MemberType NoteProperty -Name "Companies" -Value @()
     }
 
@@ -726,14 +917,20 @@ function Update-AppSettings {
     # --- DefaultTenants ------------------------------------------------
     # Chiave letta da ConfigService.GetDefaultTenants: la sua assenza fa
     # comparire il banner giallo di warning nella Web UI.
-    if (-not $json.PSObject.Properties.Name.Contains("DefaultTenants")) {
+    if (-not (Test-JsonProperty -Object $json -Name "DefaultTenants")) {
         $json | Add-Member -MemberType NoteProperty -Name "DefaultTenants" -Value @("Development", "FMGroup")
     }
 
     # --- Scrittura ------------------------------------------------------
     # -Depth 10 e' necessario: con il default (2) l'array Companies verrebbe
     # serializzato come stringhe di tipo .NET invece che come oggetti JSON.
-    $json | ConvertTo-Json -Depth 10 | Set-Content -Path $Path -Encoding UTF8
+    #
+    # Si scrive con WriteAllText e UTF8 SENZA BOM invece che con
+    # Set-Content -Encoding UTF8, che in PowerShell 5.1 il BOM lo mette: e' la
+    # stessa codifica usata da ConfigService quando la Web UI risalva il file,
+    # cosi' le due scritture non si alternano cambiando i primi byte.
+    $text = $json | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($Path, $text, (New-Object System.Text.UTF8Encoding($false)))
 }
 
 $webSettings = Join-Path $InstallRoot "Web\appsettings.json"

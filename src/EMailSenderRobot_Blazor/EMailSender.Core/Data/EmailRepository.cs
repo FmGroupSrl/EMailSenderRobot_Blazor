@@ -152,6 +152,28 @@ public class EmailRepository
     }
 
     /// <summary>
+    /// Riporta il job nello stato "da elaborare" senza toccare nient'altro.
+    /// A differenza di <see cref="RequeueJob"/> non azzera RetryCount, IsError
+    /// e ErrorMessage: serve quando il job viene saltato per una condizione
+    /// temporanea (tenant con spedizioni bloccate), non perché sia fallito.
+    /// Il record torna così nel bacino di MarkJobsAsScheduled e verrà
+    /// riconsiderato alla prossima esecuzione, senza consumare tentativi.
+    /// </summary>
+    public void MarkJobUnscheduled(int emailId)
+    {
+        const string sql = @"
+            UPDATE ConfigEmailJobSchedule
+               SET IsScheduled = 'N'
+             WHERE EmailId = @id";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@id", SqlDbType.BigInt).Value = emailId;
+        conn.Open();
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
     /// Reinvio manuale da Web UI: azzera errori e rimette il job in coda.
     /// </summary>
     public void RequeueJob(int emailId)

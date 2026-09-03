@@ -67,7 +67,11 @@ if (string.IsNullOrWhiteSpace(connStrLog))
 }
 
 // ---------------------------------------------------------------------------
-// Controllo semaforo rosso — letto dal DB
+// Controllo semaforo rosso — letto dal DB.
+// Riguarda la company passata con --company e vale da interruttore generale
+// dell'esecuzione: se è bloccata il job esce senza elaborare nulla.
+// Il blocco della singola mail, quando nella stessa coda convivono più
+// tenant, è controllato in ProcessJob sulla company della riga.
 // ---------------------------------------------------------------------------
 var repo = new EmailRepository(connStrMain);
 var log = new EmailRepository(connStrLog);
@@ -117,6 +121,31 @@ void ProcessJob(EmailJob job)
         fileLog.Error("ProcessJob", errMsg);
         repo.MarkJobFailed(job.EmailId, job.RetryCount + 1, errMsg);
         log.WriteLog(job.Company, "EMailSenderJob", errMsg, "ERRORE");
+        return;
+    }
+
+    // -----------------------------------------------------------------------
+    // Controllo del blocco spedizioni SULLA COMPANY DELLA SINGOLA MAIL.
+    //
+    // Il controllo a inizio esecuzione (più sopra) riguarda solo la company
+    // passata con --company e resta valido come interruttore generale: se è
+    // bloccata, il job non parte nemmeno. Questo secondo controllo serve
+    // quando nella stessa coda convivono più tenant (layout a database unico
+    // del robot): senza di esso il blocco di un cliente verrebbe ignorato,
+    // perché le mail vengono prelevate senza filtro per company.
+    //
+    // Costo: nullo. IsDeliveryBlocked è già valorizzato da GetServerConfig,
+    // che viene comunque chiamata qui sopra per ogni riga: nessuna query in
+    // più. Con un database per tenant il comportamento è identico a prima,
+    // perché tutte le righe appartengono alla company invocante.
+    //
+    // La mail non viene marcata come fallita: torna semplicemente in coda
+    // senza consumare un tentativo, e ripartirà quando il blocco sarà tolto.
+    // -----------------------------------------------------------------------
+    if (serverCfg.IsDeliveryBlocked)
+    {
+        fileLog.Warn("ProcessJob", $"EmailId {job.EmailId} saltata: spedizioni bloccate per il tenant '{job.Company}'.");
+        repo.MarkJobUnscheduled(job.EmailId);
         return;
     }
 

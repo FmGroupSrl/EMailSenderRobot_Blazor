@@ -269,12 +269,15 @@ Write-Host ""
 Write-Host "=== 5. Script di gestione ===" -ForegroundColor Yellow
 
 $supportScripts = @(
+    "EMailSenderCommon.ps1",
+    "Setup-EMailSender.ps1",
     "StartServices.ps1",
     "StopServices.ps1",
     "RestartServices.ps1",
     "ConsoleJobSetupJob.ps1",
     "New-EMailSenderTenant.ps1",
     "Register-EMailSenderService.ps1",
+    "Invoke-EMailSenderLogCleanup.ps1",
     "Test-EMailSenderInstall.ps1",
     "ReadMe.md",
     "INTEGRATION.md",

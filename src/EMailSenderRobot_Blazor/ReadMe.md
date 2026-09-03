@@ -86,6 +86,20 @@ Da verificare **prima** di copiare i file. `Install-EMailSender.ps1` controlla a
 
 ## 3. Installazione passo passo
 
+> ### La via rapida: un solo comando
+>
+> ```powershell
+> # PowerShell come amministratore, dalla cartella publish
+> Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+> Get-ChildItem -Recurse | Unblock-File
+>
+> .\Setup-EMailSender.ps1
+> ```
+>
+> `Setup-EMailSender.ps1` **fa tutto**: chiede i parametri all'inizio (cartella, accesso alla UI, prefisso, tenant, istanza SQL, layout dei database, SMTP), mostra un riepilogo, chiede **una sola conferma** e poi esegue installazione, tenant, i due task pianificati, riavvio del servizio e verifica finale. Dopo la conferma non fa altre domande.
+>
+> Il resto di questa sezione è la stessa cosa passo per passo, utile per capire cosa succede o per riprendere da un punto preciso quando qualcosa va storto.
+
 > Questa sezione è scritta per essere seguita **alla lettera**, senza sapere nulla del progetto. Un'installazione si fa una volta ogni tanto: qui non si dà per scontato niente. Tempo richiesto: circa 20 minuti.
 >
 > Ogni passo dice **cosa fare**, **cosa devi vedere** se è andato bene e **cosa fare se non va**.
@@ -917,6 +931,9 @@ Tutti da eseguire **come amministratore**. Sono idempotenti: rieseguirli è sicu
 
 | Script | Quando si usa | Cosa fa |
 |---|---|---|
+| **`Setup-EMailSender.ps1`** | **Installazione completa su macchina nuova** | Chiede tutto all'inizio, riepiloga, una conferma sola, poi esegue tutti gli script qui sotto nell'ordine giusto |
+| `Invoke-EMailSenderLogCleanup.ps1` | Pulizia log, e creazione del suo task | Cancella file di log e righe della tabella `log` oltre 60 giorni, **per tutti i tenant da un unico punto**. Con `-RegisterTask` crea il task giornaliero |
+| `EMailSenderCommon.ps1` | Mai da solo | Funzioni condivise (domande, convalide, registrazione task). Deve stare accanto agli altri script |
 | `Install-EMailSender.ps1` | Prima installazione su macchina nuova | Prerequisiti, cartelle, permessi, copia file, crea i due `appsettings.json`, servizio, firewall, avvio |
 | `New-EMailSenderTenant.ps1` | Nuovo tenant, o modifica di uno esistente | Database, 5 tabelle, indici, permessi SQL, riga SMTP, cartella log, **entrambi** gli `appsettings.json`, task opzionale |
 | `Register-EMailSenderService.ps1` | Servizio da creare, spostare o rimuovere | `sc.exe create/config`, recovery automatico, regola firewall. `-Remove` per disinstallare |

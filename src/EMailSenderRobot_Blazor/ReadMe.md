@@ -123,9 +123,10 @@ Get-Service | Where-Object { $_.Name -like "MSSQL*" } | Select-Object Name, Stat
 
 ✅ **Devi vedere** almeno un servizio in stato `Running`, per esempio `MSSQL$SQLEXPRESS`.
 
-📝 **Annota il nome dell'istanza**, ti serve al passo 6:
-- se vedi `MSSQL$SQLEXPRESS` → l'istanza si scrive `.\SQLEXPRESS`
-- se vedi `MSSQLSERVER` → l'istanza si scrive `.` (solo un punto)
+📝 Al passo 6 lo script **rileva da solo le istanze presenti e ti chiede quale usare**, quindi non devi ricordartela. Per riconoscerla nell'elenco:
+- `MSSQL$SQLEXPRESS` → l'istanza si scrive `.\SQLEXPRESS`
+- `MSSQLSERVER` → l'istanza si scrive `.` (solo un punto)
+- SQL su un'altra macchina → si scrive `NOMESERVER` oppure `NOMESERVER\ISTANZA`
 
 ❌ **Se non c'è nessun servizio SQL**, installa SQL Server Express da <https://www.microsoft.com/sql-server/sql-server-downloads> (scegli *Basic*), poi riprendi da qui.
 
@@ -181,19 +182,32 @@ Se ti serve che la pagina web sia raggiungibile **da altri PC** e non solo dal s
 
 ### Passo 6 — Crea il tenant (database + tabelle + configurazione + attività pianificata)
 
-Sostituisci solo i valori tra virgolette con quelli che hai deciso all'inizio, e incolla **tutto insieme** (sono tre righe che formano un comando solo; il backtick a fine riga significa "il comando continua"):
+Sostituisci solo i valori tra virgolette con quelli che hai deciso all'inizio, e incolla **tutto insieme** (sono due righe che formano un comando solo; il backtick a fine riga significa "il comando continua"):
 
 ```powershell
 .\New-EMailSenderTenant.ps1 -TenantName "FMG" -DisplayName "FM Group" `
-    -SqlInstance ".\SQLEXPRESS" `
     -SharedDatabase -MainDbName "FMG_EmailSenderRobot" -CreateTask
 ```
 
-✅ **Devi vedere** i passi da `=== 1. Database ===` a `=== 7. Task Scheduler ===`, e alla fine `Tenant 'FMG' predisposto.`
+✅ **Prima cosa, ti chiede l'istanza SQL**, mostrando quelle che ha trovato sulla macchina con il relativo stato del servizio:
+
+```
+=== Istanza SQL Server ===
+    Istanze rilevate su questa macchina:
+      .\SQLEXPRESS         [Running]
+
+    Istanza da usare [.\SQLEXPRESS]:
+```
+
+Premi invio per accettare quella proposta, oppure scrivine un'altra. Lo script prova subito la connessione e ti dice versione ed edizione del server: se sbagli, te lo dice **prima** di creare qualsiasi cosa e puoi correggere senza rilanciare tutto.
+
+✅ Poi **devi vedere** i passi da `=== 1. Database ===` a `=== 7. Task Scheduler ===`, e alla fine `Tenant 'FMG' predisposto.`
+
+> Se l'istanza la sai già e vuoi evitare la domanda (o stai automatizzando), passala con `-SqlInstance ".\SQLEXPRESS"`: in quel caso un errore di connessione interrompe subito lo script invece di richiedere il valore.
 
 Cosa ha fatto, in parole semplici: ha creato il database, ci ha messo dentro le 5 tabelle, ha dato i permessi a Windows per leggerle e scriverle, ha creato la cartella dei log, ha scritto la configurazione nei due file che servono, e ha creato l'attività pianificata che ogni minuto controlla se ci sono mail da mandare.
 
-❌ **Se dà errore di connessione a SQL**, hai probabilmente sbagliato `-SqlInstance`: ricontrolla il passo 2.
+❌ **Se la connessione fallisce**, lo script te lo dice e ti lascia riprovare con un'altra istanza (fino a tre tentativi). Le cause tipiche: servizio SQL fermo (lo vedi nell'elenco, stato diverso da `Running`), nome sbagliato, oppure — per un SQL su un'altra macchina — TCP/IP disabilitato o servizio SQL Browser non avviato.
 
 ---
 

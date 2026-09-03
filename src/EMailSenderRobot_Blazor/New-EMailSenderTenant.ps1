@@ -65,8 +65,11 @@ param(
     # Nome mostrato nella Web UI.
     [string] $DisplayName = "",
 
-    # Istanza SQL Server.
-    [string] $SqlInstance = ".\SQLEXPRESS",
+    # Istanza SQL Server. Se omesso, lo script rileva le istanze presenti sulla
+    # macchina e chiede quale usare: nessun default silenzioso, perche'
+    # indovinare l'istanza sbagliata significa creare i database sul motore
+    # sbagliato e accorgersene molto piu' tardi.
+    [string] $SqlInstance = "",
 
     # Prefisso dei nomi database. "" = nessun prefisso (default).
     # Su EasyWebParts la convenzione e' "Ewp_".
@@ -125,6 +128,132 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 # System.Data contiene SqlClient: si usa quello invece di sqlcmd.exe o del
 # modulo SqlServer, che su un server appena installato spesso non ci sono.
 Add-Type -AssemblyName System.Data
+
+# ---------------------------------------------------------------------------
+# ISTANZA SQL SERVER
+# ---------------------------------------------------------------------------
+
+<#
+.SYNOPSIS
+    Elenca le istanze SQL Server locali nel formato usato nelle connection string.
+.DESCRIPTION
+    Legge il registro di sistema, che e' la fonte piu' affidabile: elenca anche
+    le istanze installate ma con il servizio fermo, che l'elenco dei servizi in
+    esecuzione non mostrerebbe.
+    L'istanza predefinita (MSSQLSERVER) si indirizza con ".", le istanze
+    nominate con ".\NOME".
+#>
+function Get-LocalSqlInstances {
+    $instances = @()
+    $regPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"
+
+    try {
+        if (Test-Path $regPath) {
+            $props = Get-ItemProperty -Path $regPath
+            foreach ($p in $props.PSObject.Properties) {
+                # Si scartano le proprieta' di servizio di PowerShell
+                # (PSPath, PSParentPath, PSChildName, PSDrive, PSProvider).
+                if ($p.Name -like "PS*") { continue }
+
+                if ($p.Name -eq "MSSQLSERVER") { $instances += "." }
+                else                           { $instances += ".\$($p.Name)" }
+            }
+        }
+    }
+    catch {
+        # Registro non leggibile: si prosegue con l'elenco vuoto e si chiede
+        # comunque all'operatore.
+    }
+
+    return $instances
+}
+
+<#
+.SYNOPSIS
+    Apre una connessione di prova e restituisce la descrizione dell'istanza.
+.DESCRIPTION
+    Solleva un'eccezione se l'istanza non e' raggiungibile: meglio fallire qui,
+    con un messaggio comprensibile, che alla prima CREATE DATABASE.
+#>
+function Test-SqlInstance {
+    param([Parameter(Mandatory = $true)][string] $Instance)
+
+    $cs = "data source=$Instance;Integrated Security=SSPI;Connection Timeout=10;TrustServerCertificate=True"
+    $cn = New-Object System.Data.SqlClient.SqlConnection($cs)
+    try {
+        $cn.Open()
+        $cmd = $cn.CreateCommand()
+        $cmd.CommandText = "SELECT CONVERT(nvarchar(128), SERVERPROPERTY('ProductVersion')) + N' - ' + CONVERT(nvarchar(128), SERVERPROPERTY('Edition'))"
+        return [string] $cmd.ExecuteScalar()
+    }
+    finally {
+        $cn.Close()
+    }
+}
+
+# Se l'istanza non e' stata passata come parametro, la si chiede proponendo
+# quelle rilevate sulla macchina.
+$instanceWasGiven = $PSBoundParameters.ContainsKey('SqlInstance')
+
+if ([string]::IsNullOrWhiteSpace($SqlInstance)) {
+
+    Write-Host ""
+    Write-Host "=== Istanza SQL Server ===" -ForegroundColor Yellow
+
+    $found = @(Get-LocalSqlInstances)
+
+    if ($found.Count -gt 0) {
+        Write-Host "    Istanze rilevate su questa macchina:" -ForegroundColor Cyan
+        foreach ($i in $found) {
+            # Si mostra anche lo stato del servizio: un'istanza installata ma
+            # ferma e' la causa piu' comune di "connessione fallita".
+            $svcName = if ($i -eq ".") { "MSSQLSERVER" } else { "MSSQL`$" + $i.Substring(2) }
+            $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+            $state = if ($null -eq $svc) { "stato sconosciuto" } else { $svc.Status }
+            Write-Host ("      {0,-20} [{1}]" -f $i, $state)
+        }
+        $defaultInstance = $found[0]
+    }
+    else {
+        Write-Host "    Nessuna istanza locale rilevata." -ForegroundColor Cyan
+        Write-Host "    Se SQL Server e' su un'altra macchina indicare NOMESERVER o NOMESERVER\ISTANZA." -ForegroundColor Cyan
+        $defaultInstance = ".\SQLEXPRESS"
+    }
+
+    Write-Host ""
+    $answer = Read-Host "    Istanza da usare [$defaultInstance]"
+    if ([string]::IsNullOrWhiteSpace($answer)) { $SqlInstance = $defaultInstance }
+    else                                       { $SqlInstance = $answer.Trim() }
+}
+
+# Verifica di raggiungibilita'. Se l'istanza e' stata chiesta interattivamente
+# si concede di correggerla senza rilanciare tutto lo script; se invece era un
+# parametro esplicito si fallisce subito, per non bloccare usi automatizzati.
+if (-not $SkipDatabase) {
+
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        try {
+            $serverInfo = Test-SqlInstance -Instance $SqlInstance
+            Write-Host "    Connessione riuscita a '$SqlInstance' ($serverInfo)." -ForegroundColor Green
+            break
+        }
+        catch {
+            Write-Host "    Connessione fallita a '$SqlInstance': $($_.Exception.Message)" -ForegroundColor Red
+
+            if ($instanceWasGiven -or $attempt -ge 3) {
+                throw "Istanza SQL '$SqlInstance' non raggiungibile. Verificare nome, servizio avviato, e per istanze remote che TCP/IP e SQL Browser siano attivi."
+            }
+
+            $retry = Read-Host "    Riprovare con quale istanza? (invio per annullare)"
+            if ([string]::IsNullOrWhiteSpace($retry)) {
+                throw "Operazione annullata: nessuna istanza SQL valida."
+            }
+            $SqlInstance = $retry.Trim()
+        }
+    }
+}
 
 # ---------------------------------------------------------------------------
 # Normalizzazione dei parametri derivati

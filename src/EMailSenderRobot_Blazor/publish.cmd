@@ -1,40 +1,79 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
-set WEB_DIR=..\..\publish\Web
-set JOB_DIR=..\..\publish\ConsoleJob
+:: ===========================================================================
+::  publish.cmd - compila, pubblica e tagga una versione di EMailSenderRobot
+::
+::  ESEGUIBILE DA QUALSIASI DIRECTORY: il primo comando e' un pushd su %~dp0
+::  (la cartella di questo file). In precedenza lo script usava percorsi
+::  relativi alla directory corrente e, se lanciato da un'altra cartella,
+::  falliva in modo silenzioso: le operazioni git venivano eseguite fuori dal
+::  repository e le cartelle di output finivano in C:\publish.
+::
+::  ORDINE DELLE OPERAZIONI (cambiato il 2026-09-03):
+::    1. controlli preliminari (repo pulito)
+::    2. build e publish
+::    3. copia degli script
+::    4. SOLO SE TUTTO E' RIUSCITO: tag git e push
+::  Prima il commit e il tag avvenivano PRIMA della build: una build fallita
+::  lasciava un tag gia' spinto su codice che non compilava.
+::
+::  QUESTO SCRIPT NON COMMITTA PIU'. Il commit e' un atto deliberato e va
+::  fatto con "git add <file>" espliciti (regola di TRACKPRJ-8: mai
+::  "git add -A", che trascinerebbe handoff e file non tracciati). Se ci sono
+::  modifiche pendenti lo script si ferma e lo dice.
+:: ===========================================================================
+
+pushd "%~dp0"
+
+:: Radice del repository, ricavata dalla posizione di questo file.
+set "REPO_ROOT=%~dp0..\.."
+set "WEB_DIR=%REPO_ROOT%\publish\Web"
+set "JOB_DIR=%REPO_ROOT%\publish\ConsoleJob"
+set "PUB_DIR=%REPO_ROOT%\publish"
 
 :: ---------------------------------------------------------------------------
-:: Versione automatica da data/ora: 1.0.YYYYMMDD.HHmm
+:: Versione: 1.YY.MMDD.HHmm
+:: Calcolata con PowerShell e non parsando %date%, che cambia formato con le
+:: impostazioni internazionali della macchina e produrrebbe tag sbagliati.
 :: ---------------------------------------------------------------------------
-for /f "tokens=1-3 delims=/" %%a in ("%date%") do (
-    set _day=%%a
-    set _month=%%b
-    set _year=%%c
-)
-for /f "tokens=1-2 delims=:" %%a in ("%time: =0%") do (
-    set _hour=%%a
-    set _min=%%b
-)
-set VERSION=1.%_year:~2,2%.%_month%%_day%.%_hour%%_min%
+for /f %%v in ('powershell -NoProfile -Command "(Get-Date).ToString('1.yy.MMdd.HHmm')"') do set "VERSION=%%v"
+
 echo.
 echo === Versione: %VERSION% ===
 
 :: ---------------------------------------------------------------------------
-:: Commit Git automatico
+:: CONTROLLO 1 - siamo dentro un repository git?
 :: ---------------------------------------------------------------------------
-echo.
-echo === Git: commit e tag ===
-cd ..\..
-git add -A
-git commit -m "publish %VERSION%"
-git tag %VERSION%
-git push
-git push origin %VERSION%
-cd src\EMailSenderRobot_Blazor
+git -C "%REPO_ROOT%" rev-parse --git-dir >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [ERRORE] "%REPO_ROOT%" non e' un repository git.
+    goto :FINE_ERRORE
+)
 
 :: ---------------------------------------------------------------------------
-:: Pulizia e creazione cartelle di output
+:: CONTROLLO 2 - working tree pulita.
+:: Si pubblica solo codice gia' committato: altrimenti il tag punterebbe a uno
+:: stato diverso da quello effettivamente compilato.
+:: ---------------------------------------------------------------------------
+set "DIRTY="
+for /f "delims=" %%s in ('git -C "%REPO_ROOT%" status --porcelain') do set "DIRTY=1"
+
+if defined DIRTY (
+    echo.
+    echo [ERRORE] Ci sono modifiche non committate:
+    echo.
+    git -C "%REPO_ROOT%" status --short
+    echo.
+    echo Committare prima di pubblicare, mettendo in stage i singoli file:
+    echo     git add ^<file^>
+    echo     git commit -m "..."
+    goto :FINE_ERRORE
+)
+
+:: ---------------------------------------------------------------------------
+:: Pulizia e creazione delle cartelle di output
 :: ---------------------------------------------------------------------------
 echo.
 echo === Pulizia cartelle di output ===
@@ -47,73 +86,109 @@ if not exist "%WEB_DIR%" mkdir "%WEB_DIR%"
 if not exist "%JOB_DIR%" mkdir "%JOB_DIR%"
 
 :: ---------------------------------------------------------------------------
-:: Publish con iniezione versione
+:: Publish con iniezione della versione.
+:: L'esito viene controllato: senza questo, una build fallita proseguiva fino
+:: al tag lasciando in publish i binari della versione precedente.
 :: ---------------------------------------------------------------------------
 echo.
 echo === Publish EMailSender.Web ===
-dotnet publish EMailSender.Web\EMailSender.Web.csproj ^
+dotnet publish "%~dp0EMailSender.Web\EMailSender.Web.csproj" ^
     -c Release -o "%WEB_DIR%" ^
     /p:Version=%VERSION%
+if errorlevel 1 (
+    echo.
+    echo [ERRORE] Publish di EMailSender.Web fallito: nessun tag creato.
+    goto :FINE_ERRORE
+)
 
 echo.
 echo === Publish EMailSender.ConsoleJob ===
-dotnet publish EMailSender.ConsoleJob\EMailSender.ConsoleJob.csproj ^
+dotnet publish "%~dp0EMailSender.ConsoleJob\EMailSender.ConsoleJob.csproj" ^
     -c Release -o "%JOB_DIR%" ^
     /p:Version=%VERSION%
+if errorlevel 1 (
+    echo.
+    echo [ERRORE] Publish di EMailSender.ConsoleJob fallito: nessun tag creato.
+    goto :FINE_ERRORE
+)
 
+:: ---------------------------------------------------------------------------
+:: Copia degli script di installazione e della documentazione.
+:: Devono stare accanto a Web\ e ConsoleJob\: Install-EMailSender.ps1 li cerca
+:: nella propria cartella.
+:: ---------------------------------------------------------------------------
 echo.
-echo === Copia Deploy.ps1 in publish ===
-copy /Y "%~dp0Deploy.ps1" "%~dp0..\..\publish\Deploy.ps1"
+echo === Copia script e documentazione in publish ===
 
-echo === Copia FirstInstall.cmd in publish ===
-copy /Y "%~dp0FirstInstall.cmd" "%~dp0..\..\publish\FirstInstall.cmd"
+for %%F in (
+    Deploy.ps1
+    FirstInstall.cmd
+    Install-EMailSender.ps1
+    Register-EMailSenderService.ps1
+    New-EMailSenderTenant.ps1
+    ConsoleJobSetupJob.ps1
+    Test-EMailSenderInstall.ps1
+    RestartServices.ps1
+    StartServices.ps1
+    StopServices.ps1
+    ReadMe.md
+    INTEGRATION.md
+    PLACEHOLDERS.md
+) do (
+    copy /Y "%~dp0%%F" "%PUB_DIR%\%%F" >nul
+    if errorlevel 1 (
+        echo   [ATTENZIONE] copia fallita: %%F
+    ) else (
+        echo   %%F
+    )
+)
 
-echo === Copia Install-EMailSender.ps1 in publish ===
-copy /Y "%~dp0Install-EMailSender.ps1" "%~dp0..\..\publish\Install-EMailSender.ps1"
+:: ---------------------------------------------------------------------------
+:: Tag e push - solo ora che build e copie sono riuscite.
+:: ---------------------------------------------------------------------------
+echo.
+echo === Git: tag e push ===
 
-echo === Copia Register-EMailSenderService.ps1 in publish ===
-copy /Y "%~dp0Register-EMailSenderService.ps1" "%~dp0..\..\publish\Register-EMailSenderService.ps1"
+git -C "%REPO_ROOT%" tag %VERSION%
+if errorlevel 1 (
+    echo   [ATTENZIONE] tag %VERSION% non creato (esiste gia'?)
+) else (
+    echo   Tag %VERSION% creato.
+)
 
-echo === Copia New-EMailSenderTenant.ps1 in publish ===
-copy /Y "%~dp0New-EMailSenderTenant.ps1" "%~dp0..\..\publish\New-EMailSenderTenant.ps1"
+git -C "%REPO_ROOT%" push
+if errorlevel 1 echo   [ATTENZIONE] push dei commit fallito.
 
-echo === Copia ConsoleJobSetupJob.ps1 in publish ===
-copy /Y "%~dp0ConsoleJobSetupJob.ps1" "%~dp0..\..\publish\ConsoleJobSetupJob.ps1"
+git -C "%REPO_ROOT%" push origin %VERSION%
+if errorlevel 1 echo   [ATTENZIONE] push del tag fallito.
 
-echo === Copia Test-EMailSenderInstall.ps1 in publish ===
-copy /Y "%~dp0Test-EMailSenderInstall.ps1" "%~dp0..\..\publish\Test-EMailSenderInstall.ps1"
-
-echo === Copia RestartServices.ps1 in publish ===
-copy /Y "%~dp0RestartServices.ps1" "%~dp0..\..\publish\RestartServices.ps1"
-
-echo === Copia StartServices.ps1 in publish ===
-copy /Y "%~dp0StartServices.ps1" "%~dp0..\..\publish\StartServices.ps1"
-
-echo === Copia StopServices.ps1 in publish ===
-copy /Y "%~dp0StopServices.ps1" "%~dp0..\..\publish\StopServices.ps1"
-
-echo === Copia ReadMe.md in publish ===
-copy /Y "%~dp0ReadMe.md" "%~dp0..\..\publish\ReadMe.md"
-
-echo === Copia INTEGRATION.md in publish ===
-copy /Y "%~dp0INTEGRATION.md" "%~dp0..\..\publish\INTEGRATION.md"
-
-echo === Copia PLACEHOLDERS.md in publish ===
-copy /Y "%~dp0PLACEHOLDERS.md" "%~dp0..\..\publish\PLACEHOLDERS.md"
-
-
+:: ---------------------------------------------------------------------------
+:: Riepilogo
+:: ---------------------------------------------------------------------------
 echo.
 echo =========================================
 echo  Versione pubblicata: %VERSION%
 echo  Tag Git:             %VERSION%
+echo  Output:              %PUB_DIR%
 echo.
 echo  Per il deploy: zippare l'INTERA cartella publish\
-echo  (contiene Web\, ConsoleJob\, gli script .ps1 e ReadMe.md)
+echo  (contiene Web\, ConsoleJob\, gli script .ps1 e la documentazione)
 echo.
 echo  Sul server:
 echo    prima installazione  -^> Install-EMailSender.ps1
 echo    aggiornamento        -^> Deploy.ps1
 echo =========================================
 echo.
-pause
+popd
 endlocal
+pause
+exit /b 0
+
+:FINE_ERRORE
+echo.
+echo === Pubblicazione INTERROTTA: nulla e' stato taggato ne' spinto ===
+echo.
+popd
+endlocal
+pause
+exit /b 1

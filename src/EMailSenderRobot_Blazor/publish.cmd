@@ -124,7 +124,6 @@ for %%F in (
     Deploy.ps1
     EMailSenderCommon.ps1
     Setup-EMailSender.ps1
-    Invoke-EMailSenderLogCleanup.ps1
     Install-EMailSender.ps1
     Register-EMailSenderService.ps1
     New-EMailSenderTenant.ps1

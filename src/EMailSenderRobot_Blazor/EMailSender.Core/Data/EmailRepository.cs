@@ -351,6 +351,52 @@ public class EmailRepository
     /// Usa MERGE per gestire sia insert che update in un'unica istruzione.
     /// </summary>
         /// <summary>
+    /// Elimina dalla tabella log le righe più vecchie di <paramref name="retentionDays"/>
+    /// giorni per la company indicata, e restituisce quante ne ha cancellate.
+    ///
+    /// Va invocato sulla connessione al database di LOG (quello di
+    /// {Tenant}_Log), che può coincidere con il principale.
+    ///
+    /// Si cancella a blocchi di 5000 righe invece che con una DELETE unica:
+    /// su una tabella cresciuta per anni una singola istruzione terrebbe un
+    /// lock lungo e farebbe gonfiare il log delle transazioni.
+    ///
+    /// Il filtro per company è voluto: quando più tenant condividono lo stesso
+    /// database di log, ognuno deve poter cancellare solo le proprie righe,
+    /// con la propria soglia di conservazione.
+    /// </summary>
+    public int CleanupLog(string company, int retentionDays)
+    {
+        const string sql = @"
+            DELETE TOP (5000) FROM log
+             WHERE company = @company
+               AND [TimeStamp] IS NOT NULL
+               AND [TimeStamp] < @cutoff";
+
+        var cutoff = DateTime.Now.AddDays(-retentionDays);
+        int total = 0;
+
+        using var conn = new SqlConnection(_connStr);
+        conn.Open();
+
+        while (true)
+        {
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.CommandTimeout = 300;
+            cmd.Parameters.Add("@company", SqlDbType.NVarChar).Value = company;
+            cmd.Parameters.Add("@cutoff", SqlDbType.DateTime).Value = cutoff;
+
+            int deleted = cmd.ExecuteNonQuery();
+            total += deleted;
+
+            // Meno di un blocco pieno significa che non è rimasto altro.
+            if (deleted < 5000) break;
+        }
+
+        return total;
+    }
+
+    /// <summary>
     /// Elimina un record da ConfigEmailContent per company + type.
     /// </summary>
     public void DeleteEmailContent(string company, string type)

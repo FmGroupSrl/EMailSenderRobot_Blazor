@@ -8,6 +8,7 @@
 
 | Data | Modifica |
 |---|---|
+| Settembre 2026 | **Pulizia log estesa al database.** Il ConsoleJob, che già cancellava i file `.log` oltre `LogRetentionDays`, ora ripulisce con la stessa soglia anche le righe della tabella `log` del tenant. La manutenzione gira **una volta al giorno** (marcatore `lastcleanup.txt` nella cartella di log) e non ad ogni esecuzione, e avviene **prima** del controllo del semaforo, così anche un tenant bloccato viene ripulito. Default della soglia alzato a 60 giorni |
 | Settembre 2026 | **Blocco spedizioni per singolo tenant**: `IsDeliveryBlocked` viene ora verificato anche sulla company di ogni mail, non solo su quella passata con `--company`. Le mail dei tenant bloccati restano in coda senza consumare tentativi. Nuovo metodo `EmailRepository.MarkJobUnscheduled`. Comportamento invariato con un database per tenant |
 | Settembre 2026 | Corretto `appsettings.Development.json`: le chiavi di configurazione erano annidate dentro `Logging` e non venivano lette |
 | Settembre 2026 | **Revisione completa della guida per l'installazione su una macchina nuova.** Aggiunti: prerequisiti, layout dei database (DB per tenant *oppure* DB unico del robot), binding di rete di Kestrel, sezione `EmailJob`, dismissione di un tenant, appendice IIS, elenco delle discrepanze note tra codice e documentazione |
@@ -537,6 +538,7 @@ Fatti da conoscere, tutti verificati sul codice:
       "DisplayName": "FM Group",
       "BatchSize": 10,
       "MaxRetryCount": 2,
+      "LogRetentionDays": 60,
       "LogDirectory": "C:\\EMailSenderData\\FMG\\Log",
       "BackupCompany": "",
       "BackupEmailType": "",
@@ -572,7 +574,7 @@ Stesse `ConnectionStrings` e stesso `Companies` della Web UI, **più** la sezion
 | `DisplayName` | Web | Nome visualizzato nella UI |
 | `BatchSize` | Job | Mail elaborate per esecuzione. Sovrascrivibile con `--batch` |
 | `MaxRetryCount` | *nessuno* | **Ignorato dal job**, che usa `EmailJob:MaxRetryCount` (vedi §16.3) |
-| ~~`LogRetentionDays`~~ | *rimosso* | La conservazione non è più per tenant: la decide il task giornaliero di pulizia (60 giorni, file e database) |
+| `LogRetentionDays` | Job | Giorni di conservazione dei log, **sia i file `.log` sia le righe della tabella `log`**: il job li ripulisce una volta al giorno. Default 60 |
 | `LogDirectory` | Job | Cartella dei file di log. Se vuoto: `<cartella exe>\Logs` |
 | `SqlConfigTableServer` | Web + Job | Nome della tabella SMTP (default `ConfigEmailServer`) |
 | `SemaphoreFilePath` | *nessuno* | **Non letto da nessun componente** (vedi §16.2) |
@@ -931,7 +933,6 @@ Tutti da eseguire **come amministratore**. Sono idempotenti: rieseguirli è sicu
 | Script | Quando si usa | Cosa fa |
 |---|---|---|
 | **`Setup-EMailSender.ps1`** | **Installazione completa su macchina nuova** | Chiede tutto all'inizio, riepiloga, una conferma sola, poi esegue tutti gli script qui sotto nell'ordine giusto |
-| `Invoke-EMailSenderLogCleanup.ps1` | Pulizia log, e creazione del suo task | Cancella file di log e righe della tabella `log` oltre 60 giorni, **per tutti i tenant da un unico punto**. Con `-RegisterTask` crea il task giornaliero |
 | `EMailSenderCommon.ps1` | Mai da solo | Funzioni condivise (domande, convalide, registrazione task). Deve stare accanto agli altri script |
 | `Install-EMailSender.ps1` | Prima installazione su macchina nuova | Prerequisiti, cartelle, permessi, copia file, crea i due `appsettings.json`, servizio, firewall, avvio |
 | `New-EMailSenderTenant.ps1` | Nuovo tenant, o modifica di uno esistente | Database, 5 tabelle, indici, permessi SQL, riga SMTP, cartella log, **entrambi** gli `appsettings.json`, task opzionale |

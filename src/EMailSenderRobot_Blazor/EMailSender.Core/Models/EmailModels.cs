@@ -52,12 +52,13 @@ public class CompanySettings
     public string DisplayName { get; set; } = "";
     public int BatchSize { get; set; } = 10;
     public int MaxRetryCount { get; set; } = 2;
-    // LogRetentionDays è stato rimosso: la conservazione dei log non è più un
-    // parametro per tenant. La pulizia è centralizzata nel task giornaliero
-    // creato da Invoke-EMailSenderLogCleanup.ps1, con un'unica soglia valida
-    // per file su disco e tabella log di tutti i tenant.
-    // La chiave eventualmente presente nei vecchi appsettings.json viene
-    // ignorata in deserializzazione e sparisce al primo salvataggio dalla UI.
+    /// <summary>
+    /// Giorni di conservazione dei log, per questo tenant.
+    /// Vale sia per i file .log su disco sia per le righe della tabella log:
+    /// la pulizia dei due va di pari passo, ed è eseguita dal ConsoleJob una
+    /// volta al giorno (vedi la manutenzione giornaliera in Program.cs).
+    /// </summary>
+    public int LogRetentionDays { get; set; } = 60;
     public string LogDirectory { get; set; } = "";
     public string BackupCompany { get; set; } = "";
     public string BackupEmailType { get; set; } = "";

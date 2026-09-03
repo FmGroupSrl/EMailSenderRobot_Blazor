@@ -76,6 +76,51 @@ if (string.IsNullOrWhiteSpace(connStrLog))
 var repo = new EmailRepository(connStrMain);
 var log = new EmailRepository(connStrLog);
 
+// ---------------------------------------------------------------------------
+// Manutenzione giornaliera dei log — file su disco e righe sul database.
+//
+// Sta PRIMA del controllo del semaforo di proposito: un tenant con le
+// spedizioni bloccate per settimane deve comunque veder ripulire i propri log,
+// altrimenti crescono indisturbati proprio nel periodo in cui nessuno guarda.
+//
+// Gira una volta al giorno, non ad ogni esecuzione: il job parte ogni minuto e
+// ripetere la DELETE 1440 volte al giorno per tenant sarebbe lavoro inutile
+// sul database. La data dell'ultima esecuzione sta in un file marcatore nella
+// cartella di log, quindi il conteggio sopravvive ai riavvii e non richiede
+// tabelle di servizio.
+//
+// La soglia è quella del tenant (LogRetentionDays, 60 giorni di default): con
+// più tenant nello stesso database di log, ognuno cancella solo le proprie
+// righe con la propria soglia.
+// ---------------------------------------------------------------------------
+int retentionDays = companyCfg?.LogRetentionDays ?? 60;
+
+if (fileLog.GetLastMaintenance().Date < DateTime.Now.Date)
+{
+    try
+    {
+        int filesDeleted = fileLog.Cleanup(retentionDays);
+        int rowsDeleted = log.CleanupLog(company, retentionDays);
+
+        fileLog.SetLastMaintenance();
+
+        // Si scrive solo se qualcosa è stato effettivamente cancellato: una
+        // riga al giorno che dice "cancellati 0 file" è rumore.
+        if (filesDeleted > 0 || rowsDeleted > 0)
+        {
+            fileLog.Info("Manutenzione",
+                $"Pulizia log oltre {retentionDays} giorni: {filesDeleted} file, {rowsDeleted} righe su DB.");
+        }
+    }
+    catch (Exception ex)
+    {
+        // La manutenzione non deve mai impedire la spedizione: si annota e si
+        // prosegue. Il marcatore non viene aggiornato, quindi si riprova alla
+        // prossima esecuzione.
+        fileLog.Error("Manutenzione", $"Pulizia log non riuscita: {ex.Message}");
+    }
+}
+
 if (repo.GetIsDeliveryBlocked(company, sqlTable))
 {
     fileLog.Warn("EMailSenderJob", "Spedizioni BLOCCATE (IsDeliveryBlocked=S). Uscita.");
@@ -96,13 +141,6 @@ try
 
     foreach (var job in jobs)
         ProcessJob(job);
-
-    // La cancellazione dei log vecchi non avviene più qui: se ne occupa
-    // Invoke-EMailSenderLogCleanup.ps1, un task giornaliero che ripulisce da
-    // un unico punto sia i file su disco sia la tabella log, per tutti i
-    // tenant. Farlo anche qui significava due soglie diverse in due posti,
-    // con la più aggressiva che vinceva silenziosamente, e comunque non
-    // copriva né la tabella sul database né i tenant che smettono di girare.
 }
 catch (Exception ex)
 {

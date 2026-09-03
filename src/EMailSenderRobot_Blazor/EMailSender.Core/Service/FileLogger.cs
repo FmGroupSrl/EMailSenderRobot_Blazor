@@ -38,10 +38,73 @@ public class FileLogger
     public void Error(string operation, string message) => Write("ERRORE", operation, message);
     public void Warn(string operation, string message) => Write("WARNING", operation, message);
 
-    // NOTA: qui esisteva un metodo Cleanup(int retentionDays) che cancellava i
-    // file di log più vecchi di N giorni, invocato al termine di ogni
-    // esecuzione del ConsoleJob. È stato rimosso: la pulizia è ora
-    // centralizzata in Invoke-EMailSenderLogCleanup.ps1, un task giornaliero
-    // che ripulisce file su disco e tabella log per tutti i tenant con
-    // un'unica soglia. Vedi Invoke-EMailSenderLogCleanup.ps1.
+    /// <summary>
+    /// Elimina i file di log più vecchi di <paramref name="retentionDays"/> giorni.
+    /// Restituisce il numero di file cancellati, così il chiamante può darne conto.
+    /// </summary>
+    public int Cleanup(int retentionDays)
+    {
+        int deleted = 0;
+
+        try
+        {
+            if (!Directory.Exists(_logDir)) return 0;
+
+            var cutoff = DateTime.Now.AddDays(-retentionDays);
+            foreach (var file in Directory.GetFiles(_logDir, "EMailSender_*.log"))
+            {
+                if (File.GetLastWriteTime(file) < cutoff)
+                {
+                    File.Delete(file);
+                    deleted++;
+                }
+            }
+        }
+        catch
+        {
+            // La pulizia non deve mai impedire la spedizione: un errore qui
+            // (file in uso, permessi) viene ignorato e riprovato domani.
+        }
+
+        return deleted;
+    }
+
+    /// <summary>
+    /// Data dell'ultima manutenzione eseguita, letta da un file marcatore nella
+    /// cartella di log. Restituisce DateTime.MinValue se non è mai stata fatta.
+    ///
+    /// Serve a far girare la pulizia UNA VOLTA AL GIORNO: il job parte ogni
+    /// minuto, e ripetere ad ogni esecuzione una DELETE sulla tabella log
+    /// significherebbe 1440 query al giorno per tenant, per lo più inutili.
+    /// </summary>
+    public DateTime GetLastMaintenance()
+    {
+        try
+        {
+            var marker = Path.Combine(_logDir, "lastcleanup.txt");
+            if (!File.Exists(marker)) return DateTime.MinValue;
+
+            var text = File.ReadAllText(marker).Trim();
+            if (DateTime.TryParse(text, out var when)) return when;
+        }
+        catch { }
+
+        return DateTime.MinValue;
+    }
+
+    /// <summary>
+    /// Registra che la manutenzione è stata eseguita adesso.
+    /// </summary>
+    public void SetLastMaintenance()
+    {
+        try
+        {
+            if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
+
+            File.WriteAllText(Path.Combine(_logDir, "lastcleanup.txt"),
+                              DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+        catch { }
+    }
 }

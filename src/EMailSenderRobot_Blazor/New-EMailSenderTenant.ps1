@@ -99,10 +99,11 @@ param(
     # Parametri applicativi del tenant.
     [int] $BatchSize        = 10,
     [int] $MaxRetryCount    = 2,
-    # LogRetentionDays rimosso: la conservazione dei log non e' piu' un
-    # parametro per tenant, la decide il task giornaliero di pulizia creato da
-    # Invoke-EMailSenderLogCleanup.ps1 (60 giorni, file e database insieme).
 
+    # Giorni di conservazione dei log di questo tenant: vale sia per i file
+    # .log su disco sia per le righe della tabella log, che il ConsoleJob
+    # ripulisce una volta al giorno.
+    [int] $LogRetentionDays = 60,
 
     # Parametri SMTP: se -SmtpServer e' valorizzato viene creata/aggiornata
     # la riga in ConfigEmailServer. Altrimenti si configura dalla Web UI.
@@ -899,7 +900,8 @@ function Update-AppSettings {
         [Parameter(Mandatory = $true)][string] $ConnLog,
         [Parameter(Mandatory = $true)][string] $LogDir,
         [Parameter(Mandatory = $true)][int]    $Batch,
-        [Parameter(Mandatory = $true)][int]    $MaxRetry
+        [Parameter(Mandatory = $true)][int]    $MaxRetry,
+        [Parameter(Mandatory = $true)][int]    $Retention
     )
 
     # La cartella di destinazione puo' non esistere se questo script viene
@@ -975,6 +977,7 @@ function Update-AppSettings {
         LogDirectory         = $LogDir
         BackupCompany        = ""
         BackupEmailType      = ""
+        LogRetentionDays     = $Retention
         SqlConfigTableServer = "ConfigEmailServer"
         SemaphoreFilePath    = ""
     }
@@ -1015,7 +1018,7 @@ $jobSettings = Join-Path $InstallRoot "ConsoleJob\appsettings.json"
 foreach ($target in @($webSettings, $jobSettings)) {
     Update-AppSettings -Path $target -Tenant $TenantName -Display $DisplayName `
         -ConnMain $connStrMain -ConnLog $connStrLog -LogDir $LogDirectory `
-        -Batch $BatchSize -MaxRetry $MaxRetryCount
+        -Batch $BatchSize -MaxRetry $MaxRetryCount -Retention $LogRetentionDays
     Write-Host "    Aggiornato: $target" -ForegroundColor Green
 }
 

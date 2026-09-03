@@ -262,20 +262,7 @@ Write-Host "6. Task Scheduler" -ForegroundColor Yellow
 $allTasks = @(Get-ScheduledTask -ErrorAction SilentlyContinue |
               Where-Object { $_.TaskName -like "EMailSender*" })
 
-$found   = @($allTasks | Where-Object { $_.TaskName -like "EMailSenderJob*" })
-$cleanup = @($allTasks | Where-Object { $_.TaskName -like "*LogCleanup*" })
-
-# Task di pulizia: la sua assenza non blocca le spedizioni, ma da quando la
-# pulizia non avviene piu' dentro il ConsoleJob e' l'unico che cancella i log
-# vecchi, su disco e sul database.
-if ($cleanup.Count -eq 0) {
-    Write-Check WARN "task di pulizia log assente: i log non vengono piu' cancellati da nessuno (crearlo con Invoke-EMailSenderLogCleanup.ps1 -RegisterTask)"
-}
-else {
-    foreach ($c in $cleanup) {
-        Write-Check OK "$($c.TaskPath)$($c.TaskName) [$($c.State)]"
-    }
-}
+$found = @($allTasks | Where-Object { $_.TaskName -like "EMailSenderJob*" })
 
 if ($found.Count -eq 0) {
     Write-Check ERR "nessun task 'EMailSenderJob*' trovato nel Task Scheduler"
@@ -465,6 +452,24 @@ else {
             }
             else {
                 Write-Check WARN "nessun file EMailSender_*.log presente: il job non ha mai scritto"
+            }
+
+            # Marcatore della manutenzione giornaliera (pulizia di file e
+            # tabella log). Se e' vecchio di piu' di due giorni il job non sta
+            # girando, oppure la pulizia fallisce ad ogni tentativo.
+            $marker = Join-Path $t.LogDirectory "lastcleanup.txt"
+            if (Test-Path $marker) {
+                $when = (Get-Content $marker -Raw).Trim()
+                $parsed = [datetime]::MinValue
+                if ([datetime]::TryParse($when, [ref] $parsed) -and $parsed -lt (Get-Date).AddDays(-2)) {
+                    Write-Check WARN "ultima pulizia log: $when (piu' di due giorni fa)"
+                }
+                else {
+                    Write-Check INFO "ultima pulizia log: $when"
+                }
+            }
+            else {
+                Write-Check INFO "pulizia log mai eseguita (avviene una volta al giorno, dal job)"
             }
         }
     }

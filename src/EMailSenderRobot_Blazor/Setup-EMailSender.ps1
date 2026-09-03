@@ -9,8 +9,10 @@
         1. Install-EMailSender.ps1        file, permessi, servizio, firewall
         2. New-EMailSenderTenant.ps1      database, tabelle, permessi, config
         3. ConsoleJobSetupJob.ps1         task di spedizione (ogni minuto)
-        4. Invoke-EMailSenderLogCleanup   task di pulizia log (giornaliero)
-        5. Test-EMailSenderInstall.ps1    verifica finale
+        4. Test-EMailSenderInstall.ps1    verifica finale
+
+    La pulizia dei log non ha un task proprio: la fa il ConsoleJob una volta al
+    giorno, su file e database insieme, con la soglia del tenant.
 
     Le domande stanno TUTTE all'inizio: una volta risposto si puo' andare via.
     Gli script chiamati ricevono ogni valore come parametro, quindi nessuno di
@@ -68,7 +70,6 @@ $required = @(
     "Install-EMailSender.ps1",
     "New-EMailSenderTenant.ps1",
     "ConsoleJobSetupJob.ps1",
-    "Invoke-EMailSenderLogCleanup.ps1",
     "Test-EMailSenderInstall.ps1",
     "Register-EMailSenderService.ps1"
 )
@@ -238,7 +239,7 @@ else {
 }
 Write-Host ("  Cartella log su disco  : {0}" -f $LogDirectory)
 Write-Host ("  Cartella task          : {0}" -f $taskFolder)
-Write-Host ("  Pulizia log            : ogni giorno, oltre {0} giorni (file e database)" -f $RetentionDays)
+Write-Host ("  Conservazione log      : {0} giorni (file e database), pulizia giornaliera dal job" -f $RetentionDays)
 if ([string]::IsNullOrWhiteSpace($SmtpServer)) {
     Write-Host  "  SMTP                   : da configurare dalla Web UI"
 }
@@ -279,14 +280,15 @@ Write-Step "Installazione file, servizio e firewall"
 # --- 2. Tenant --------------------------------------------------------------
 Write-Step "Database, tabelle e configurazione del tenant"
 $tenantArgs = @{
-    TenantName   = $TenantName
-    DisplayName  = $DisplayName
-    SqlInstance  = $SqlInstance
-    DbPrefix     = $DbPrefix
-    MainDbName   = $MainDbName
-    LogDbName    = $LogDbName
-    LogDirectory = $LogDirectory
-    InstallRoot  = $InstallRoot
+    TenantName       = $TenantName
+    DisplayName      = $DisplayName
+    SqlInstance      = $SqlInstance
+    DbPrefix         = $DbPrefix
+    MainDbName       = $MainDbName
+    LogDbName        = $LogDbName
+    LogDirectory     = $LogDirectory
+    LogRetentionDays = $RetentionDays
+    InstallRoot      = $InstallRoot
 }
 if ($SharedDatabase) { $tenantArgs["SharedDatabase"] = $true }
 if (-not [string]::IsNullOrWhiteSpace($SmtpServer)) {
@@ -303,12 +305,7 @@ Write-Step "Task di spedizione (ogni minuto)"
 & (Join-Path $PSScriptRoot "ConsoleJobSetupJob.ps1") `
     -TenantId $TenantName -InstallRoot $InstallRoot -TaskFolder $taskFolder
 
-# --- 4. Task di pulizia log -------------------------------------------------
-Write-Step "Task di pulizia log (giornaliero)"
-& (Join-Path $PSScriptRoot "Invoke-EMailSenderLogCleanup.ps1") `
-    -RegisterTask -InstallRoot $InstallRoot -TaskFolder $taskFolder -RetentionDays $RetentionDays
-
-# --- 5. Riavvio del servizio ------------------------------------------------
+# --- 4. Riavvio del servizio ------------------------------------------------
 # Il servizio e' partito prima che la configurazione del tenant esistesse: va
 # riavviato perche' la rilegga.
 Write-Step "Riavvio del servizio"
@@ -321,7 +318,7 @@ catch {
     Write-Host "    Riavvio non riuscito: $_" -ForegroundColor Red
 }
 
-# --- 6. Verifica ------------------------------------------------------------
+# --- 5. Verifica ------------------------------------------------------------
 Write-Step "Verifica dell'installazione"
 & (Join-Path $PSScriptRoot "Test-EMailSenderInstall.ps1") `
     -InstallRoot $InstallRoot -TenantName $TenantName

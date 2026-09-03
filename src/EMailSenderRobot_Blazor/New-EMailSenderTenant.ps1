@@ -125,7 +125,14 @@ param(
     [string] $TaskFolder = "\EMailSender",
 
     # Salta la parte SQL: aggiorna solo i file di configurazione.
-    [switch] $SkipDatabase
+    [switch] $SkipDatabase,
+
+    # L'opposto di -SkipDatabase: crea database, tabelle, indici, permessi e
+    # riga SMTP, poi si ferma. Non tocca la cartella di log, gli appsettings.json
+    # ne' il Task Scheduler. Serve quando l'installazione e' gia' configurata e
+    # bisogna solo predisporre lo schema — per esempio su un database creato da
+    # altri, o per rimettere a posto tabelle mancanti.
+    [switch] $DatabaseOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -831,6 +838,24 @@ VALUES
 else {
     Write-Host ""
     Write-Host "=== 1-4. Parte SQL saltata (-SkipDatabase) ===" -ForegroundColor Cyan
+}
+
+# ---------------------------------------------------------------------------
+# Uscita anticipata per -DatabaseOnly: lo schema e' pronto, e per scelta non si
+# tocca nient'altro (cartella di log, appsettings.json, Task Scheduler).
+# ---------------------------------------------------------------------------
+if ($DatabaseOnly) {
+    Write-Host ""
+    Write-Host "=========================================================" -ForegroundColor Green
+    Write-Host " Database e tabelle predisposti (-DatabaseOnly)." -ForegroundColor Green
+    Write-Host "=========================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host " Non sono stati toccati: cartella di log, appsettings.json, task."
+    Write-Host " Connection string da usare, se servono a mano:"
+    Write-Host "   $($TenantName)_Main : $connStrMain" -ForegroundColor DarkGray
+    Write-Host "   $($TenantName)_Log  : $connStrLog" -ForegroundColor DarkGray
+    Write-Host ""
+    return
 }
 
 # ---------------------------------------------------------------------------

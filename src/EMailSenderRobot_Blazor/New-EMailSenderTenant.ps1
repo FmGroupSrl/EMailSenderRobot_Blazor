@@ -57,10 +57,13 @@
 #>
 [CmdletBinding()]
 param(
-    # Nome interno del tenant. Deve coincidere con il valore passato come
+    # Nome interno del tenant: deve coincidere con il valore passato come
     # --company al ConsoleJob e con il prefisso delle due connection string.
-    [Parameter(Mandatory = $true)]
-    [string] $TenantName,
+    # Non e' dichiarato Mandatory di proposito: il prompt nativo di PowerShell
+    # non convalida nulla e su una risposta vuota interrompe lo script con un
+    # errore di binding. Se manca lo chiede il blocco piu' sotto, che
+    # convalida la risposta e la ripete finche' non e' accettabile.
+    [string] $TenantName = "",
 
     # Nome mostrato nella Web UI.
     [string] $DisplayName = "",
@@ -168,6 +171,72 @@ function Read-Answer {
 
         Write-Host "    (host non interattivo: uso il valore predefinito '$Default')" -ForegroundColor DarkGray
         return $Default
+    }
+}
+
+# ---------------------------------------------------------------------------
+# NOME DEL TENANT
+# ---------------------------------------------------------------------------
+
+<#
+.SYNOPSIS
+    Convalida il nome di un tenant, spiegando il motivo di ogni rifiuto.
+.DESCRIPTION
+    Il limite di 15 caratteri non e' arbitrario: la colonna Company di
+    ConfigEmailContent e ConfigEmailAddress e' NVARCHAR(15). Un nome piu'
+    lungo verrebbe troncato in scrittura e non corrisponderebbe piu' a
+    Companies[].Name, facendo sparire i template senza alcun errore.
+    Gli spazi sono esclusi perche' il nome viaggia come argomento --company
+    sulla riga di comando del task.
+#>
+function Test-TenantNameValid {
+    param([string] $Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        Write-Host "    Il nome del tenant e' obbligatorio." -ForegroundColor Red
+        return $false
+    }
+
+    if ($Name -match '\s') {
+        Write-Host "    Il nome del tenant non puo' contenere spazi (viaggia come argomento --company)." -ForegroundColor Red
+        return $false
+    }
+
+    if ($Name.Length -gt 15) {
+        Write-Host "    Massimo 15 caratteri: la colonna Company di ConfigEmailContent e' NVARCHAR(15)." -ForegroundColor Red
+        Write-Host "    Un nome piu' lungo verrebbe troncato e i template non verrebbero piu' trovati." -ForegroundColor Red
+        return $false
+    }
+
+    if ($Name -notmatch '^[A-Za-z0-9_.-]+$') {
+        Write-Host "    Usare solo lettere, numeri, underscore, punto e trattino." -ForegroundColor Red
+        return $false
+    }
+
+    return $true
+}
+
+if ([string]::IsNullOrWhiteSpace($TenantName)) {
+
+    Write-Host ""
+    Write-Host "=== Tenant ===" -ForegroundColor Yellow
+    Write-Host "    Codice interno del tenant: e' l'identita' di spedizione del robot." -ForegroundColor Cyan
+    Write-Host "    Viene usato in Companies[].Name, come prefisso delle connection string" -ForegroundColor DarkGray
+    Write-Host "    (<Tenant>_Main / <Tenant>_Log), come argomento --company del task e nella" -ForegroundColor DarkGray
+    Write-Host "    colonna Company delle tabelle. Non e' il nome del database." -ForegroundColor DarkGray
+    Write-Host ""
+
+    while ($true) {
+        $TenantName = Read-Answer -Prompt "    Nome del tenant (es. FMGROUP)" -Mandatory -ParameterHint "-TenantName"
+        if (Test-TenantNameValid -Name $TenantName) { break }
+    }
+}
+else {
+    # Convalida anche il valore passato da riga di comando: le stesse regole
+    # valgono comunque, e fallire adesso e' meglio che scoprirlo a database
+    # creati.
+    if (-not (Test-TenantNameValid -Name $TenantName)) {
+        throw "Nome tenant non valido: '$TenantName'."
     }
 }
 

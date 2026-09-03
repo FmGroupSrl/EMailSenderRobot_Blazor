@@ -8,6 +8,7 @@
 
 | Data | Modifica |
 |---|---|
+| Settembre 2026 | **Nuovo `Migrate-EMailSenderData.ps1`**: migrazione dei dati del robot da un database all'altro (nomi sbagliati da correggere, consolidamento nel DB unico, trasloco su altra macchina o istanza). Non tocca l'origine, è idempotente, ha `-DryRun` con conteggio reale, filtro per tenant e rinomina. Documentato in §11.1. Aggiunto anche `-DatabaseOnly` a `New-EMailSenderTenant.ps1`, che prepara il solo schema |
 | Settembre 2026 | **Pulizia log estesa al database.** Il ConsoleJob, che già cancellava i file `.log` oltre `LogRetentionDays`, ora ripulisce con la stessa soglia anche le righe della tabella `log` del tenant. La manutenzione gira **una volta al giorno** (marcatore `lastcleanup.txt` nella cartella di log) e non ad ogni esecuzione, e avviene **prima** del controllo del semaforo, così anche un tenant bloccato viene ripulito. Default della soglia alzato a 60 giorni |
 | Settembre 2026 | **Blocco spedizioni per singolo tenant**: `IsDeliveryBlocked` viene ora verificato anche sulla company di ogni mail, non solo su quella passata con `--company`. Le mail dei tenant bloccati restano in coda senza consumare tentativi. Nuovo metodo `EmailRepository.MarkJobUnscheduled`. Comportamento invariato con un database per tenant |
 | Settembre 2026 | Corretto `appsettings.Development.json`: le chiavi di configurazione erano annidate dentro `Logging` e non venivano lette |
@@ -733,6 +734,45 @@ Restano a carico dell'operatore: i parametri SMTP (se non passati allo script) e
 
 Sequenza manuale equivalente, se serve farla a mano: §6.1 → §6.2 → §6.3 → §6.4 → §7 su **entrambi** i file → §10 → §9.
 
+### 11.1 Migrazione dei dati da un'installazione esistente
+
+Quando il tenant non è nuovo ma **arriva da un altro database** — nomi sbagliati da correggere, consolidamento nel DB unico, trasloco su un'altra macchina — si crea prima lo schema e poi si portano dentro i dati:
+
+```powershell
+# 1. Solo schema e permessi sulla destinazione, senza toccare config e task
+.\New-EMailSenderTenant.ps1 -TenantName "FMGROUP" -DbPrefix "FMG_" `
+    -SqlInstance ".\SQLEXPRESS" -DatabaseOnly
+
+# 2. Prova a vuoto: dice quante righe sposterebbe, senza scrivere niente
+.\Migrate-EMailSenderData.ps1 -SqlInstance ".\SQLEXPRESS" `
+    -SourceMainDb "FMGROUP_MainDb"  -SourceLogDb "FMGROUP_LoggerDb" `
+    -TargetMainDb "FMG_FMGROUP_Mail" -TargetLogDb "FMG_FMGROUP_MailLog" `
+    -DryRun
+
+# 3. Migrazione vera (togliere -DryRun)
+```
+
+Cosa fa: copia le 5 tabelle dall'origine alla destinazione, **senza mai modificare l'origine**, riconoscendo per chiave logica le righe già presenti — quindi si può rieseguire, ed è il modo giusto di lavorare: una prima passata a robot acceso, una seconda a robot fermo per recuperare quel poco arrivato nel frattempo.
+
+Interruttori che contano:
+
+| Parametro | Effetto |
+|---|---|
+| `-DryRun` | Simulazione. Il conteggio è quello vero, non una stima |
+| `-Company` | Migra un solo tenant. È così che si consolidano più tenant nello stesso DB unico: una esecuzione per ciascuno, stessa destinazione |
+| `-NewCompany` | Rinomina il tenant durante la copia (richiede `-Company`) |
+| `-QueueScope` | `Pending` (default) solo le mail ancora da spedire, `All` anche lo storico, `None` niente coda |
+| `-IncludeLog` | Copia anche la tabella `log`, esclusa per default. Alla riesecuzione riprende dall'ultima riga già presente |
+| `-Overwrite` | Sulla configurazione fa vincere l'origine invece di lasciare il dato già presente |
+| `-SourceSqlInstance` | Origine su un'altra istanza o un'altra macchina. I dati passano dal client: niente linked server, niente backup/restore |
+
+Due avvertenze emerse sul campo:
+
+- **`EmailId` non si conserva.** È una `IDENTITY` e i valori dell'origine collidono con quelli già presenti in destinazione: le mail migrate ricevono un id nuovo. È innocuo, perché fra le 5 tabelle non esistono chiavi esterne.
+- **Le collation possono differire.** I database storici hanno quella scelta all'epoca (`Latin1_General_CI_AS`), quelli creati oggi ereditano quella dell'istanza (`SQL_Latin1_General_CP1_CI_AS`). I dati arrivano comunque integri — la copia passa dal client, non da una JOIN fra database — ma ordinamenti e confronti di testo sulla destinazione possono comportarsi diversamente. Lo script lo rileva e avvisa.
+
+A migrazione finita: `.\Test-EMailSenderInstall.ps1`, controllo dalla Web UI che il tenant veda la sua configurazione, e **solo dopo** si mettono offline i database di origine.
+
 ---
 
 ## 12. Dismissione di un tenant
@@ -966,7 +1006,8 @@ Tutti da eseguire **come amministratore**. Sono idempotenti: rieseguirli è sicu
 | **`Setup-EMailSender.ps1`** | **Installazione completa su macchina nuova** | Chiede tutto all'inizio, riepiloga, una conferma sola, poi esegue tutti gli script qui sotto nell'ordine giusto |
 | `EMailSenderCommon.ps1` | Mai da solo | Funzioni condivise (domande, convalide, registrazione task). Deve stare accanto agli altri script |
 | `Install-EMailSender.ps1` | Prima installazione su macchina nuova | Prerequisiti, cartelle, permessi, copia file, crea i due `appsettings.json`, servizio, firewall, avvio |
-| `New-EMailSenderTenant.ps1` | Nuovo tenant, o modifica di uno esistente | Database, 5 tabelle, indici, permessi SQL, riga SMTP, cartella log, **entrambi** gli `appsettings.json`, task opzionale |
+| `New-EMailSenderTenant.ps1` | Nuovo tenant, o modifica di uno esistente | Database, 5 tabelle, indici, permessi SQL, riga SMTP, cartella log, **entrambi** gli `appsettings.json`, task opzionale. Con `-DatabaseOnly` si ferma allo schema |
+| `Migrate-EMailSenderData.ps1` | Tenant che arriva da un altro database | Copia le 5 tabelle fra due installazioni senza toccare l'origine. Idempotente, con `-DryRun`, filtro per tenant e rinomina. Vedi §11.1 |
 | `Register-EMailSenderService.ps1` | Servizio da creare, spostare o rimuovere | `sc.exe create/config`, recovery automatico, regola firewall. `-Remove` per disinstallare |
 | `ConsoleJobSetupJob.ps1` | Task di un tenant | Crea/aggiorna il task come `SYSTEM`, ripetizione illimitata. `-Remove` per rimuoverlo |
 | `Test-EMailSenderInstall.ps1` | Verifica e diagnosi | Solo lettura: 9 famiglie di controlli, exit code 1 su errori |

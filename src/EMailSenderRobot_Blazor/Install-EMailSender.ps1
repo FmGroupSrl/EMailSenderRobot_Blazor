@@ -276,6 +276,7 @@ $supportScripts = @(
     "RestartServices.ps1",
     "ConsoleJobSetupJob.ps1",
     "New-EMailSenderTenant.ps1",
+    "Migrate-EMailSenderData.ps1",
     "Register-EMailSenderService.ps1",
     "Test-EMailSenderInstall.ps1",
     "ReadMe.md",

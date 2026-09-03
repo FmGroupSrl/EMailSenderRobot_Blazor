@@ -127,6 +127,7 @@ for %%F in (
     Install-EMailSender.ps1
     Register-EMailSenderService.ps1
     New-EMailSenderTenant.ps1
+    Migrate-EMailSenderData.ps1
     ConsoleJobSetupJob.ps1
     Test-EMailSenderInstall.ps1
     RestartServices.ps1

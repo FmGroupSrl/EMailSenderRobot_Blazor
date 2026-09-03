@@ -671,6 +671,24 @@ Lo script è idempotente e accetta `-InstallRoot`, `-TaskFolder`, `-BatchSize`, 
 
 ---
 
+### 9.3 Manutenzione automatica dei log
+
+**Non esiste un task di pulizia**: la fa il ConsoleJob stesso, e non c'è niente da creare o da ricordare.
+
+| Cosa | Come |
+|---|---|
+| Cosa cancella | I file `EMailSender_*.log` **e** le righe della tabella `log` del tenant |
+| Soglia | `LogRetentionDays` del tenant, default **60 giorni**, la stessa per file e database |
+| Quando | **Una volta al giorno**, non ad ogni esecuzione. La data dell'ultima sta in `lastcleanup.txt` dentro la cartella di log |
+| Dove nel flusso | **Prima** del controllo del semaforo: anche un tenant con le spedizioni bloccate viene ripulito |
+| Se fallisce | Viene annotato nel log e il marcatore non viene aggiornato, quindi si riprova al giro dopo. Non impedisce mai la spedizione |
+| Multi-tenant | La `DELETE` filtra per `Company`: nel database condiviso ogni tenant cancella solo le proprie righe, con la propria soglia |
+| Indice | Se manca `IX_log_company_ts` sulla tabella `log`, il job **lo crea da solo** alla prima manutenzione e lo scrive nel log |
+
+Le mail già spedite in `ConfigEmailJobSchedule` **non** vengono cancellate: sono storico, non log. A 200 mail al giorno sono circa 73.000 righe l'anno, che non danno fastidio a nessuno; una cancellazione periodica è a backlog in TRACKPRJ-32.
+
+---
+
 ## 10. Configurazione SMTP
 
 Dalla Web UI (pagina **Config SMTP**), oppure via SQL:
@@ -767,7 +785,20 @@ Vedi §3: si copia la cartella `publish\` sul server e si esegue `Install-EMailS
 
 `Deploy.ps1` ferma il servizio, copia i file da `publish\Web\` e `publish\ConsoleJob\` nelle rispettive cartelle **senza sovrascrivere alcun `appsettings*.json`**, aggiorna gli script di gestione e la guida in `C:\EMailSender\`, poi riavvia il servizio.
 
-> `Deploy.ps1` è per gli **aggiornamenti**: presuppone che il servizio esista già. Su una macchina nuova va usato `Install-EMailSender.ps1`.
+> `Deploy.ps1` è per gli **aggiornamenti**: presuppone che il servizio esista già. Su una macchina nuova va usato `Setup-EMailSender.ps1`.
+
+**Cosa NON devi fare a mano dopo un aggiornamento:**
+
+| | |
+|---|---|
+| Script SQL | ❌ Nessuno. Se manca un indice se lo crea il programma |
+| Rilanciare la creazione del tenant | ❌ No |
+| Toccare gli `appsettings.json` | ❌ No: `Deploy.ps1` non li sovrascrive mai |
+| Ricreare i task | ❌ No: puntano agli stessi eseguibili |
+
+Quindi: **copi la cartella `publish\` e lanci `Deploy.ps1`. Fine.**
+
+L'unico caso che oggi richiede un intervento è una modifica di schema **più grossa di un indice** — una colonna o una tabella nuova. Il controllo automatico di conformità dello schema è tracciato in TRACKPRJ-30 e non è ancora implementato; nel frattempo il ripiego è rilanciare `New-EMailSenderTenant.ps1`, che è idempotente: crea ciò che manca e non tocca i dati esistenti.
 
 ---
 

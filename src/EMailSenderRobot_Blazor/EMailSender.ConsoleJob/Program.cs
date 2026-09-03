@@ -99,6 +99,13 @@ if (fileLog.GetLastMaintenance().Date < DateTime.Now.Date)
 {
     try
     {
+        // Indice a supporto della pulizia: i database creati con la DDL storica
+        // non ce l'hanno, e senza di esso la DELETE qui sotto scansiona tutta
+        // la tabella. Se lo crea il programma alla prima manutenzione utile,
+        // così un aggiornamento non richiede interventi manuali sul database.
+        if (log.EnsureLogIndex())
+            fileLog.Info("Manutenzione", "Creato indice IX_log_company_ts sulla tabella log.");
+
         int filesDeleted = fileLog.Cleanup(retentionDays);
         int rowsDeleted = log.CleanupLog(company, retentionDays);
 

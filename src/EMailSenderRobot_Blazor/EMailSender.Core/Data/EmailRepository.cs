@@ -351,6 +351,43 @@ public class EmailRepository
     /// Usa MERGE per gestire sia insert che update in un'unica istruzione.
     /// </summary>
         /// <summary>
+    /// Crea, se manca, l'indice che serve alla pulizia della tabella log.
+    /// Restituisce true se l'ha creato adesso, false se c'era già.
+    ///
+    /// Perché il programma se lo crea da solo: i database creati con la DDL
+    /// storica non hanno alcun indice su log, e senza di esso la DELETE della
+    /// manutenzione scansiona l'intera tabella. Chiedere all'operatore di
+    /// lanciare uno script SQL dopo ogni aggiornamento significa che prima o
+    /// poi non verrà fatto, e nessuno se ne accorgerà finché la tabella non
+    /// sarà grande.
+    ///
+    /// È una creazione idempotente e non distruttiva: nessun DROP, nessuna
+    /// modifica ai dati. Sulla prima esecuzione contro una tabella già molto
+    /// grande può richiedere qualche secondo; avviene una volta sola.
+    /// </summary>
+    public bool EnsureLogIndex()
+    {
+        const string sql = @"
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes
+                            WHERE name = N'IX_log_company_ts'
+                              AND object_id = OBJECT_ID(N'log'))
+            BEGIN
+                CREATE INDEX IX_log_company_ts ON log (company, [TimeStamp]);
+                SELECT 1;
+            END
+            ELSE
+                SELECT 0;";
+
+        using var conn = new SqlConnection(_connStr);
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.CommandTimeout = 600;   // su tabelle grandi la creazione non è istantanea
+        conn.Open();
+
+        var result = cmd.ExecuteScalar();
+        return result != null && Convert.ToInt32(result) == 1;
+    }
+
+    /// <summary>
     /// Elimina dalla tabella log le righe più vecchie di <paramref name="retentionDays"/>
     /// giorni per la company indicata, e restituisce quante ne ha cancellate.
     ///

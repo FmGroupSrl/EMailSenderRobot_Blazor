@@ -199,7 +199,24 @@ Sostituisci solo i valori tra virgolette con quelli che hai deciso all'inizio, e
     Istanza da usare [.\SQLEXPRESS]:
 ```
 
-Premi invio per accettare quella proposta, oppure scrivine un'altra. Lo script prova subito la connessione e ti dice versione ed edizione del server: se sbagli, te lo dice **prima** di creare qualsiasi cosa e puoi correggere senza rilanciare tutto.
+Premi invio per accettare quella proposta, oppure scrivine un'altra.
+
+**Se sulla macchina ci sono più istanze**, non viene proposto nessun default e la scelta è obbligatoria, per numero o per nome:
+
+```
+    Rilevate 3 istanze su questa macchina:
+      [1] .                        [Running]  (istanza predefinita)
+      [2] .\SQLEXPRESS             [Running]
+      [3] .\SQL2019                [Stopped]
+
+    Nessuna scelta predefinita: indicare quale usare.
+
+    Istanza da usare (1-3 oppure nome):
+```
+
+È voluto: con più motori sulla stessa macchina, un invio dato per abitudine creerebbe i database su quello sbagliato. Puoi rispondere con il numero, oppure scrivere un nome che non è in elenco — per esempio un server remoto, che il rilevamento locale non vede.
+
+In tutti i casi lo script prova subito la connessione e ti dice versione ed edizione del server: se sbagli, te lo dice **prima** di creare qualsiasi cosa e puoi correggere senza rilanciare tutto.
 
 ✅ Poi **devi vedere** i passi da `=== 1. Database ===` a `=== 7. Task Scheduler ===`, e alla fine `Tenant 'FMG' predisposto.`
 

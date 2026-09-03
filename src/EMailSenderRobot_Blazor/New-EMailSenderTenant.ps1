@@ -170,6 +170,26 @@ function Get-LocalSqlInstances {
 
 <#
 .SYNOPSIS
+    Restituisce lo stato del servizio Windows di un'istanza SQL.
+.DESCRIPTION
+    Un'istanza installata ma con il servizio fermo e' la causa piu' frequente
+    di "connessione fallita": mostrarlo nell'elenco evita di cercare altrove.
+    Il servizio dell'istanza predefinita si chiama MSSQLSERVER, quello delle
+    istanze nominate MSSQL$NOME.
+#>
+function Get-SqlServiceState {
+    param([Parameter(Mandatory = $true)][string] $Instance)
+
+    if ($Instance -eq ".") { $svcName = "MSSQLSERVER" }
+    else                   { $svcName = "MSSQL`$" + $Instance.Substring(2) }
+
+    $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+    if ($null -eq $svc) { return "stato sconosciuto" }
+    return [string] $svc.Status
+}
+
+<#
+.SYNOPSIS
     Apre una connessione di prova e restituisce la descrizione dell'istanza.
 .DESCRIPTION
     Solleva un'eccezione se l'istanza non e' raggiungibile: meglio fallire qui,
@@ -202,28 +222,79 @@ if ([string]::IsNullOrWhiteSpace($SqlInstance)) {
 
     $found = @(Get-LocalSqlInstances)
 
-    if ($found.Count -gt 0) {
-        Write-Host "    Istanze rilevate su questa macchina:" -ForegroundColor Cyan
-        foreach ($i in $found) {
-            # Si mostra anche lo stato del servizio: un'istanza installata ma
-            # ferma e' la causa piu' comune di "connessione fallita".
-            $svcName = if ($i -eq ".") { "MSSQLSERVER" } else { "MSSQL`$" + $i.Substring(2) }
-            $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
-            $state = if ($null -eq $svc) { "stato sconosciuto" } else { $svc.Status }
-            Write-Host ("      {0,-20} [{1}]" -f $i, $state)
-        }
-        $defaultInstance = $found[0]
-    }
-    else {
+    if ($found.Count -eq 0) {
+
+        # --- Nessuna istanza locale -------------------------------------
+        # Caso normale quando SQL Server sta su un'altra macchina.
         Write-Host "    Nessuna istanza locale rilevata." -ForegroundColor Cyan
         Write-Host "    Se SQL Server e' su un'altra macchina indicare NOMESERVER o NOMESERVER\ISTANZA." -ForegroundColor Cyan
-        $defaultInstance = ".\SQLEXPRESS"
+        Write-Host ""
+
+        $answer = Read-Host "    Istanza da usare [.\SQLEXPRESS]"
+        if ([string]::IsNullOrWhiteSpace($answer)) { $SqlInstance = ".\SQLEXPRESS" }
+        else                                       { $SqlInstance = $answer.Trim() }
+    }
+    elseif ($found.Count -eq 1) {
+
+        # --- Una sola istanza -------------------------------------------
+        # Si puo' proporre come default senza rischi: non c'e' alternativa
+        # locale da confondere.
+        $only = $found[0]
+        Write-Host "    Istanza rilevata su questa macchina:" -ForegroundColor Cyan
+        Write-Host ("      {0,-24} [{1}]" -f $only, (Get-SqlServiceState -Instance $only))
+        Write-Host ""
+
+        $answer = Read-Host "    Istanza da usare [$only]"
+        if ([string]::IsNullOrWhiteSpace($answer)) { $SqlInstance = $only }
+        else                                       { $SqlInstance = $answer.Trim() }
+    }
+    else {
+
+        # --- Piu' istanze: scelta obbligatoria, nessun default -----------
+        # Con piu' motori sulla stessa macchina proporre un default sarebbe
+        # pericoloso: un invio dato per abitudine creerebbe i database su
+        # quello sbagliato, e l'errore verrebbe fuori molto piu' tardi.
+        # Si pretende quindi una scelta esplicita, per numero o per nome.
+        Write-Host "    Rilevate $($found.Count) istanze su questa macchina:" -ForegroundColor Cyan
+        for ($n = 0; $n -lt $found.Count; $n++) {
+            $label = $found[$n]
+            $extra = ""
+            if ($label -eq ".") { $extra = "  (istanza predefinita)" }
+            Write-Host ("      [{0}] {1,-24} [{2}]{3}" -f ($n + 1), $label, (Get-SqlServiceState -Instance $label), $extra)
+        }
+        Write-Host ""
+        Write-Host "    Nessuna scelta predefinita: indicare quale usare." -ForegroundColor Yellow
+        Write-Host "    Si puo' rispondere con il numero, oppure con un nome non in elenco" -ForegroundColor DarkGray
+        Write-Host "    (es. un server remoto: NOMESERVER\ISTANZA)." -ForegroundColor DarkGray
+
+        while ($true) {
+            Write-Host ""
+            $answer = (Read-Host "    Istanza da usare (1-$($found.Count) oppure nome)").Trim()
+
+            if ([string]::IsNullOrWhiteSpace($answer)) {
+                Write-Host "    Risposta obbligatoria." -ForegroundColor Red
+                continue
+            }
+
+            # Risposta numerica: deve cadere dentro l'elenco.
+            $index = 0
+            if ([int]::TryParse($answer, [ref] $index)) {
+                if ($index -ge 1 -and $index -le $found.Count) {
+                    $SqlInstance = $found[$index - 1]
+                    break
+                }
+                Write-Host "    Numero fuori elenco: indicare un valore tra 1 e $($found.Count)." -ForegroundColor Red
+                continue
+            }
+
+            # Altrimenti si accetta il nome cosi' com'e' scritto: puo' essere
+            # un'istanza remota, che il rilevamento locale non vede.
+            $SqlInstance = $answer
+            break
+        }
     }
 
-    Write-Host ""
-    $answer = Read-Host "    Istanza da usare [$defaultInstance]"
-    if ([string]::IsNullOrWhiteSpace($answer)) { $SqlInstance = $defaultInstance }
-    else                                       { $SqlInstance = $answer.Trim() }
+    Write-Host "    Istanza scelta: $SqlInstance" -ForegroundColor Cyan
 }
 
 # Verifica di raggiungibilita'. Se l'istanza e' stata chiesta interattivamente

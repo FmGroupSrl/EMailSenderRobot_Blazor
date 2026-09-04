@@ -8,6 +8,7 @@
 
 | Data | Modifica |
 |---|---|
+| Settembre 2026 | **Schema allineato al modello di `FMGroup.Mail`.** Tre correzioni al DDL, tutte emerse da un errore in produzione che non si vedeva né compilando né installando: aggiunta `ConfigEmailContent.Description` (senza, la prima lettura del testo di una mail muore con l'errore 207), `ConfigEmailJobSchedule.ErrorMessage` resa **nullable** (la libreria vi scrive NULL esplicito e con `NOT NULL` l'accodamento fallisce; il `DEFAULT` non salva, perché interviene solo se la colonna è omessa), e `CreationTimeStamp` ha ora `DEFAULT GETDATE()` (la libreria non lo mappa, quindi restava sempre vuoto) |
 | Settembre 2026 | **Nuovo `Migrate-EMailSenderData.ps1`**: migrazione dei dati del robot da un database all'altro (nomi sbagliati da correggere, consolidamento nel DB unico, trasloco su altra macchina o istanza). Non tocca l'origine, è idempotente, ha `-DryRun` con conteggio reale, filtro per tenant e rinomina. Documentato in §11.1. Aggiunto anche `-DatabaseOnly` a `New-EMailSenderTenant.ps1`, che prepara il solo schema |
 | Settembre 2026 | **Pulizia log estesa al database.** Il ConsoleJob, che già cancellava i file `.log` oltre `LogRetentionDays`, ora ripulisce con la stessa soglia anche le righe della tabella `log` del tenant. La manutenzione gira **una volta al giorno** (marcatore `lastcleanup.txt` nella cartella di log) e non ad ogni esecuzione, e avviene **prima** del controllo del semaforo, così anche un tenant bloccato viene ripulito. Default della soglia alzato a 60 giorni |
 | Settembre 2026 | **Blocco spedizioni per singolo tenant**: `IsDeliveryBlocked` viene ora verificato anche sulla company di ogni mail, non solo su quella passata con `--company`. Le mail dei tenant bloccati restano in coda senza consumare tentativi. Nuovo metodo `EmailRepository.MarkJobUnscheduled`. Comportamento invariato con un database per tenant |
@@ -398,10 +399,15 @@ CREATE TABLE ConfigEmailJobSchedule (
     EmailCC           NVARCHAR(500)  NOT NULL DEFAULT '',
     EmailCCN          NVARCHAR(500)  NOT NULL DEFAULT '',
     EmailAttachments  NVARCHAR(1000) NOT NULL DEFAULT '',
-    CreationTimeStamp DATETIME       NULL,
+    -- DEFAULT GETDATE(): FMGroup.Mail non mappa questa colonna e non la
+    -- valorizza, quindi senza default la data di accodamento resterebbe vuota
+    CreationTimeStamp DATETIME       NULL DEFAULT GETDATE(),
     SentTimeStamp     DATETIME       NULL,
     IsError           NCHAR(1)       NOT NULL DEFAULT 'N',
-    ErrorMessage      NVARCHAR(MAX)  NOT NULL DEFAULT '',
+    -- NULL e non NOT NULL: la libreria mappa la colonna ma non la valorizza,
+    -- quindi EF vi scrive NULL esplicito e il DEFAULT non scatta (interviene
+    -- solo se la colonna viene omessa). Con NOT NULL l'accodamento fallisce
+    ErrorMessage      NVARCHAR(MAX)  NULL DEFAULT '',
     RetryCount        INT            NOT NULL DEFAULT 0,
     IsScheduled       NCHAR(1)       NOT NULL DEFAULT 'N'
 );
@@ -438,7 +444,11 @@ CREATE TABLE ConfigEmailContent (
     EmailBodyRowRepeater NVARCHAR(MAX)  NULL,
     EmailFooter          NVARCHAR(MAX)  NULL,
     EmailObject          NVARCHAR(MAX)  NULL,
-    EmailIsHtml          NCHAR(1)       NULL
+    EmailIsHtml          NCHAR(1)       NULL,
+    -- Mappata da FMGroup.Mail: EF elenca tutte le colonne mappate nella
+    -- SELECT, quindi senza questa la prima lettura del testo di una mail
+    -- fallisce con "Il nome di colonna 'Description' non è valido" (errore 207)
+    Description          NVARCHAR(512)  NULL
 );
 
 -- Indirizzi mail. Chiave logica: Company + Type

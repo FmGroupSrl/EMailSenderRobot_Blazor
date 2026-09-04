@@ -685,10 +685,17 @@ CREATE TABLE ConfigEmailJobSchedule (
     EmailCC           NVARCHAR(500)  NOT NULL DEFAULT '',
     EmailCCN          NVARCHAR(500)  NOT NULL DEFAULT '',
     EmailAttachments  NVARCHAR(1000) NOT NULL DEFAULT '',
-    CreationTimeStamp DATETIME       NULL,
+    -- DEFAULT GETDATE() perche' FMGroup.Mail non mappa questa colonna e non la
+    -- valorizza: senza default ogni mail accodata dalla libreria resterebbe
+    -- senza data di accodamento, dato che serve per diagnosi e per la Web UI.
+    CreationTimeStamp DATETIME       NULL DEFAULT GETDATE(),
     SentTimeStamp     DATETIME       NULL,
     IsError           NCHAR(1)       NOT NULL DEFAULT 'N',
-    ErrorMessage      NVARCHAR(MAX)  NOT NULL DEFAULT '',
+    -- NULL e non NOT NULL: la libreria mappa questa colonna ma non la
+    -- valorizza in accodamento, quindi EF la include nell'INSERT come NULL
+    -- esplicito. Con NOT NULL l'INSERT fallisce, e il DEFAULT non salva la
+    -- situazione perche' interviene solo quando la colonna viene omessa.
+    ErrorMessage      NVARCHAR(MAX)  NULL DEFAULT '',
     RetryCount        INT            NOT NULL DEFAULT 0,
     IsScheduled       NCHAR(1)       NOT NULL DEFAULT 'N'
 );
@@ -731,7 +738,12 @@ CREATE TABLE ConfigEmailContent (
     EmailBodyRowRepeater NVARCHAR(MAX)  NULL,
     EmailFooter          NVARCHAR(MAX)  NULL,
     EmailObject          NVARCHAR(MAX)  NULL,
-    EmailIsHtml          NCHAR(1)       NULL
+    EmailIsHtml          NCHAR(1)       NULL,
+    -- Mappata da FMGroup.Mail: EF elenca tutte le colonne mappate nella SELECT,
+    -- quindi se manca la prima lettura del testo di una mail muore con
+    -- "Il nome di colonna 'Description' non e' valido" (errore 207).
+    -- NVARCHAR(512) come la colonna omonima di ConfigEmailAddress.
+    Description          NVARCHAR(512)  NULL
 );
 
 -- Destinatari per tipo di mail. Chiave logica: Company + Type.
